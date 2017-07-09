@@ -1,14 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26228.9
+VisualStudioVersion = 15.0.26430.15
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeoJsonRenderer", "GeoJsonRenderer\GeoJsonRenderer.csproj", "{745611BD-0582-4813-971B-7908FCA6F10D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{FC6FE996-AE21-4F7F-A4B3-EAE5D06F5476}"
 	ProjectSection(SolutionItems) = preProject
 		README.md = README.md
+		TODO.md = TODO.md
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeoJsonConsole", "GeoJsonConsole\GeoJsonConsole.csproj", "{7B051A45-86DD-456B-A044-269D741F6357}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -20,6 +23,10 @@ Global
 		{745611BD-0582-4813-971B-7908FCA6F10D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{745611BD-0582-4813-971B-7908FCA6F10D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{745611BD-0582-4813-971B-7908FCA6F10D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B051A45-86DD-456B-A044-269D741F6357}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B051A45-86DD-456B-A044-269D741F6357}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B051A45-86DD-456B-A044-269D741F6357}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B051A45-86DD-456B-A044-269D741F6357}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
