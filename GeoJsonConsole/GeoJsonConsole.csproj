@@ -50,6 +50,9 @@
     <None Include="testdata1.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="testdata2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GeoJsonRenderer\GeoJsonRenderer.csproj">
@@ -60,7 +63,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties testdata1_1json__JSONSchema="http://json.schemastore.org/geojson" />
+      <UserProperties testdata2_1json__JSONSchema="http://json.schemastore.org/geojson" testdata1_1json__JSONSchema="http://json.schemastore.org/geojson" />
     </VisualStudio>
   </ProjectExtensions>
 </Project>
