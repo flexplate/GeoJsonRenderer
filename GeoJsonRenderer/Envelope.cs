@@ -1,8 +1,8 @@
 ﻿using GeoJSON.Net;
 using GeoJSON.Net.Feature;
 using GeoJSON.Net.Geometry;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Therezin.GeoJsonRenderer
@@ -13,6 +13,20 @@ namespace Therezin.GeoJsonRenderer
 		public double MinY { get; set; }
 		public double MaxX { get; set; }
 		public double MaxY { get; set; }
+
+		public double Width
+		{
+			get { return MaxX - MinX; }
+		}
+		public double Height
+		{
+			get { return MaxY - MinY; }
+		}
+		public double AspectRatio
+		{
+			get { return Width / Height; }
+		}
+
 
 		public Envelope() { }
 

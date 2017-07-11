@@ -17,8 +17,8 @@ namespace GeoJsonConsole
             var reader = new StreamReader("testdata1.json");
             var Json = reader.ReadToEnd();
 
-            R.RenderGeoJson(Json, @"D:\TEMP\test2.png", 400, 300);
-        }
+            R.RenderGeoJson(Json, @"D:\TEMP\test.png", 400, 300);
+		}
     }
 }
  

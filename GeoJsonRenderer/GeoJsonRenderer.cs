@@ -23,12 +23,13 @@ namespace Therezin.GeoJsonRenderer
 
 			// Find envelope of geometry
 			Envelope Extents = Envelope.FindExtents(GeoJsonObjects);
+			
+			// Zoom to extents
+			RotateAndScale(GeoJsonObjects, width, height);
+			Envelope Extents2 = Envelope.FindExtents(GeoJsonObjects);
 
 			// Rebase to zero
-			RebaseGeometry(GeoJsonObjects, Extents);
-
-			// Zoom to extents
-			Envelope Extents2 = Envelope.FindExtents(GeoJsonObjects);
+			RebaseGeometry(GeoJsonObjects, Extents2);
 
 			// Create canvas
 			using (Bitmap = new Bitmap(width, height))
@@ -51,6 +52,7 @@ namespace Therezin.GeoJsonRenderer
 			}
 
 		}
+
 
 		/// <summary>
 		/// Iterate through feature collection and rebase its coordinates around zero.
@@ -79,7 +81,7 @@ namespace Therezin.GeoJsonRenderer
 					case GeoJSONObjectType.LineString:
 						{
 							var Line = ((LineString)Feature.Geometry);
-							for (int i = 0; i < Line.Coordinates.Count; i++) { ((LineString)Feature.Geometry).Coordinates[i] = RebasePosition(Line.Coordinates[i], envelope); }
+							for (int i = 0; i < Line.Coordinates.Count; i++) { Line.Coordinates[i] = RebasePosition(Line.Coordinates[i], envelope); }
 							break;
 						}
 					case GeoJSONObjectType.MultiLineString:
@@ -124,7 +126,123 @@ namespace Therezin.GeoJsonRenderer
 
 		private IPosition RebasePosition(IPosition coordinates, Envelope envelope)
 		{
-			return new Position(coordinates.Longitude - envelope.MinX, coordinates.Latitude - envelope.MinY);
+			return new Position(coordinates.Latitude - envelope.MinX, coordinates.Longitude - envelope.MinY);
+		}
+
+
+		private void RotateAndScale(FeatureCollection geoJsonObjects, int width, int height)
+		{
+			Envelope Extents = Envelope.FindExtents(geoJsonObjects);
+			double OutputAspect = width / (double)height;
+			// Set rotate flag if one aspect > 1, but not both.
+			bool Rotate = (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
+			double ScaleFactor;
+			if (Rotate)
+			{
+				ScaleFactor = Extents.Width / height;
+			}
+			else
+			{
+				ScaleFactor = Extents.Width / width;
+			}
+
+			for (int i = 0; i < geoJsonObjects.Features.Count; i++)
+			{
+				Feature Feature = geoJsonObjects.Features[i];
+				switch (Feature.Geometry.Type)
+				{
+					case GeoJSONObjectType.Point:
+						{
+							IPosition PointPosition = ((GeoJSON.Net.Geometry.Point)Feature.Geometry).Coordinates;
+							if (Rotate) { PointPosition = RotatePosition90Degrees(PointPosition); }
+							var Point = new GeoJSON.Net.Geometry.Point(ScalePosition(PointPosition, ScaleFactor));
+							Feature = new Feature(Point, Feature.Properties, Feature.Id != null ? Feature.Id : null);
+							break;
+						}
+					case GeoJSONObjectType.MultiPoint:
+						{
+							var MultiP = ((MultiPoint)Feature.Geometry);
+							for (int j = 0; j < MultiP.Coordinates.Count; j++)
+							{
+								var Position = MultiP.Coordinates[j].Coordinates;
+								if (Rotate) { Position = RotatePosition90Degrees(Position); }
+								MultiP.Coordinates[j] = new GeoJSON.Net.Geometry.Point(ScalePosition(Position, ScaleFactor));
+							}
+							break;
+						}
+					case GeoJSONObjectType.LineString:
+						{
+							var Line = ((LineString)Feature.Geometry);
+							for (int j = 0; j < Line.Coordinates.Count; j++)
+							{
+								var Position = Line.Coordinates[j];
+								if (Rotate) { Position = RotatePosition90Degrees(Position); }
+								Position = ScalePosition(Position, ScaleFactor);
+							}
+							break;
+						}
+					case GeoJSONObjectType.MultiLineString:
+						foreach (var Line in ((MultiLineString)Feature.Geometry).Coordinates)
+						{
+							for (int j = 0; j < Line.Coordinates.Count; j++)
+							{
+								var Position = Line.Coordinates[j];
+								if (Rotate) { Position = RotatePosition90Degrees(Position); }
+								Position = ScalePosition(Position, ScaleFactor);
+							}
+						}
+						break;
+					case GeoJSONObjectType.Polygon:
+						foreach (var Line in ((Polygon)Feature.Geometry).Coordinates)
+						{
+							for (int j = 0; j < Line.Coordinates.Count; j++)
+							{
+								if (Rotate) { Line.Coordinates[j] = RotatePosition90Degrees(Line.Coordinates[j]); }
+								Line.Coordinates[j] = ScalePosition(Line.Coordinates[j], ScaleFactor);
+							}
+						}
+						break;
+					case GeoJSONObjectType.MultiPolygon:
+						foreach (var Poly in ((MultiPolygon)Feature.Geometry).Coordinates)
+						{
+							foreach (var Line in Poly.Coordinates)
+							{
+								for (int j = 0; j < Line.Coordinates.Count; j++)
+								{
+									if (Rotate) { Line.Coordinates[j] = RotatePosition90Degrees(Line.Coordinates[j]); }
+									Line.Coordinates[j] = ScalePosition(Line.Coordinates[j], ScaleFactor);
+								}
+							}
+						}
+						break;
+					case GeoJSONObjectType.GeometryCollection:
+						break;
+					case GeoJSONObjectType.Feature:
+						FeatureCollection Collection = new FeatureCollection(new List<Feature>(){ Feature });
+						RotateAndScale(Collection, width, height);
+						break;
+					case GeoJSONObjectType.FeatureCollection:
+						RotateAndScale((FeatureCollection)Feature.Geometry, width, height);
+						break;
+					default:
+						break;
+				}
+			}
+
+		}
+
+		public IPosition RotatePosition90Degrees(IPosition position)
+		{
+			return new Position(-position.Longitude, position.Latitude, position.Altitude);
+		}
+
+		public IPosition ScalePosition(IPosition position, double scaleFactor)
+		{
+			if (position.Altitude != null)
+			{
+				return new Position(position.Latitude * scaleFactor, position.Longitude * scaleFactor, position.Altitude * scaleFactor);
+			}
+			return new Position(position.Latitude * scaleFactor, position.Longitude * scaleFactor);
 		}
 
 		/// <summary>
