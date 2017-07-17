@@ -260,3 +260,8 @@ paket-files/
 __pycache__/
 *.pyc
 /GeoJsonConsole/testdata2.json
+/GeoJsonConsole/testdata3.json
+/GeoJsonConsole/test-307-text.json
+/GeoJsonConsole/test-307-perimeter.json
+/GeoJsonConsole/test-307-frame.json
+/GeoJsonConsole/test-307-areas.json

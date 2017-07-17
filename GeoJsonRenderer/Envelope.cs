@@ -38,6 +38,41 @@ namespace Therezin.GeoJsonRenderer
 			MaxY = maxY;
 		}
 
+		public override string ToString()
+		{
+			return string.Format("[{0},{1}],[{2},{3}]", MinX, MinY, MaxX, MaxY);
+		}
+
+		public static Envelope FindExtents(List<FeatureCollection> collections)
+		{
+			var Extents = new Envelope();
+			foreach (var Collection in collections)
+			{
+				var CollectionExtents = FindExtents(Collection);
+				// Confusing syntax: Uses LINQ to find smallest, excluding 0. Not an array of doubles.
+				Extents.MinX = new double[] { Extents.MinX, CollectionExtents.MinX }.Where(v => v != 0).Min();
+				Extents.MinY = new double[] { Extents.MinY, CollectionExtents.MinY }.Where(v => v != 0).Min();
+				Extents.MaxX = Math.Max(Extents.MaxX, CollectionExtents.MaxX);
+				Extents.MaxY = Math.Max(Extents.MaxY, CollectionExtents.MaxY);
+			}
+			return Extents;
+		}
+
+		public static Envelope FindExtents(FeatureCollection features, Envelope extents = null)
+		{
+			var Extents = new Envelope();
+			if (extents != null)
+			{
+				Extents = extents;
+			}
+
+			var Geometries = new List<IGeometryObject>();
+			foreach (var Feature in features.Features)
+			{
+				Geometries.Add(Feature.Geometry);
+			}
+			return FindExtents(Geometries, Extents);
+		}
 
 		public static Envelope FindExtents(List<IGeometryObject> geoJsonObjects, Envelope extents = null)
 		{
@@ -118,23 +153,6 @@ namespace Therezin.GeoJsonRenderer
 			}
 			return Extents;
 		}
-
-		public static Envelope FindExtents(FeatureCollection features, Envelope extents = null)
-		{
-			var Extents = new Envelope();
-			if (extents != null)
-			{
-				Extents = extents;
-			}
-
-			var Geometries = new List<IGeometryObject>();
-			foreach (var Feature in features.Features)
-			{
-				Geometries.Add(Feature.Geometry);
-			}
-			return FindExtents(Geometries, Extents);
-		}
-
 
 		private static Envelope FindExtents(IPosition position, Envelope extents = null)
 		{
