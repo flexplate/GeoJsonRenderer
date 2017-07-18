@@ -72,7 +72,6 @@ var R = new GeoJsonRenderer();
 R.OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
 ```
 Note that the FillBrush property of a DrawingStyle is only applied to Polygon Geometries - LineStrings that completely enclose an area will not be treated as polygons unless they are defined as such.
-he optional style is used to render a Feature, rather than the default style.
 
 ## Future developments
 Note: these ideas may or may not be implemented.
