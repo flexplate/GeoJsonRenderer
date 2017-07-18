@@ -7,29 +7,64 @@ using System.Linq;
 
 namespace Therezin.GeoJsonRenderer
 {
+	/// <summary>
+	/// Describes a rectangle that encompasses a geographic area, in arbitrary units.
+	/// </summary>
 	public class Envelope
 	{
+		/// <summary>
+		/// Minimum value of the bounding box's X axis. (i.e., West-most extent)
+		/// </summary>
 		public double MinX { get; set; }
+
+		/// <summary>
+		/// Minimum value of the bounding box's Y axis.
+		/// </summary>
 		public double MinY { get; set; }
+
+		/// <summary>
+		/// Maximum value of the bounding box's X axis.
+		/// </summary>
 		public double MaxX { get; set; }
+
+		/// <summary>
+		/// Maximum value of the bounding box's Y axis.
+		/// </summary>
 		public double MaxY { get; set; }
 
+		/// <summary>
+		/// Width of the envelope (Longitude, in arbitrary units).
+		/// </summary>
 		public double Width
 		{
 			get { return MaxX - MinX; }
 		}
+
+		/// <summary>
+		/// Height of the envelope (Latitude, in arbitrary units).
+		/// </summary>
+		/// <remarks>Note: not the height in 3-dimensional space.</remarks>
 		public double Height
 		{
 			get { return MaxY - MinY; }
 		}
+
+		/// <summary>
+		/// The envelope's aspect ratio.
+		/// </summary>
 		public double AspectRatio
 		{
 			get { return Width / Height; }
 		}
 
-
+		/// <summary>
+		/// Instantiate an empty envelope (Coordinates are [0,0],[0,0]).
+		/// </summary>
 		public Envelope() { }
 
+		/// <summary>
+		/// Instantiate an envelope with the specified minima and maxima.
+		/// </summary>
 		public Envelope(double minX, double minY, double maxX, double maxY)
 		{
 			MinX = minX;
@@ -38,26 +73,40 @@ namespace Therezin.GeoJsonRenderer
 			MaxY = maxY;
 		}
 
+		/// <summary>
+		/// Output the envelope's coordinates as a string.
+		/// </summary>
 		public override string ToString()
 		{
 			return string.Format("[{0},{1}],[{2},{3}]", MinX, MinY, MaxX, MaxY);
 		}
 
+		/// <summary>
+		/// Find the smallest bounding box that can contain all FeatureCollections in a given List.
+		/// </summary>
+		/// <param name="collections">The FeatureCollections whose dimensions we're returning</param>
+		/// <returns>An Envelope that can contain all Features in the provided FeatureCollections.</returns>
 		public static Envelope FindExtents(List<FeatureCollection> collections)
 		{
 			var Extents = new Envelope();
 			foreach (var Collection in collections)
 			{
 				var CollectionExtents = FindExtents(Collection);
-				// Confusing syntax: Uses LINQ to find smallest, excluding 0. Not an array of doubles.
-				Extents.MinX = new double[] { Extents.MinX, CollectionExtents.MinX }.Where(v => v != 0).Min();
-				Extents.MinY = new double[] { Extents.MinY, CollectionExtents.MinY }.Where(v => v != 0).Min();
+				// Confusing syntax: Uses LINQ to find smallest, excluding 0. Not actually an array of doubles.
+				Extents.MinX = new double[] { Extents.MinX, CollectionExtents.MinX }.Where(v => v != 0).DefaultIfEmpty().Min();
+				Extents.MinY = new double[] { Extents.MinY, CollectionExtents.MinY }.Where(v => v != 0).DefaultIfEmpty().Min();
 				Extents.MaxX = Math.Max(Extents.MaxX, CollectionExtents.MaxX);
 				Extents.MaxY = Math.Max(Extents.MaxY, CollectionExtents.MaxY);
 			}
 			return Extents;
 		}
 
+		/// <summary>
+		/// Find the smallest bounding box that can contain all Features in a given FeatureCollection, optionally extending an existing Envelope.
+		/// </summary>
+		/// <param name="features">The FeatureCollection to measure.</param>
+		/// <param name="extents">If this is present, <paramref name="features"/> will be measured against this envelope rather than a blank one.</param>
+		/// <returns>An envelope that can contain all Features in the provided collection with dimensions at least as large as the optional Envelope <paramref name="extents"/>.</returns>
 		public static Envelope FindExtents(FeatureCollection features, Envelope extents = null)
 		{
 			var Extents = new Envelope();
@@ -74,7 +123,14 @@ namespace Therezin.GeoJsonRenderer
 			return FindExtents(Geometries, Extents);
 		}
 
-		public static Envelope FindExtents(List<IGeometryObject> geoJsonObjects, Envelope extents = null)
+		/// <summary>
+		/// Find the smallest bounding box that can contain all provided GeometryObjects, optionally extending an existing Envelope.
+		/// </summary>
+		/// <param name="geoJsonObjects">Collection of IGeometrryObjects to  measure.</param>
+		/// <param name="extents">If this is present, <paramref name="geoJsonObjects"/> will be measured against this envelope rather than a blank one.</param>
+		/// <returns>An envelope that can contain all Features in the provided collection with dimensions at least as large as the optional Envelope <paramref name="extents"/>.</returns>
+		/// <remarks>Will recurse through nested GeometryCollections.</remarks>
+		public static Envelope FindExtents(IEnumerable<IGeometryObject> geoJsonObjects, Envelope extents = null)
 		{
 			var Extents = new Envelope();
 			if (extents != null)
@@ -139,13 +195,6 @@ namespace Therezin.GeoJsonRenderer
 						case GeoJSONObjectType.GeometryCollection:
 							Extents = FindExtents(((GeometryCollection)Item).Geometries, Extents);
 							break;
-						case GeoJSONObjectType.Feature:
-							FeatureCollection Collection = new FeatureCollection(new List<Feature>() { (Feature)Item });
-							Extents = FindExtents(Collection, Extents);
-							break;
-						case GeoJSONObjectType.FeatureCollection:
-							Extents = FindExtents((FeatureCollection)Item, Extents);
-							break;
 						default:
 							break;
 					}
@@ -154,6 +203,12 @@ namespace Therezin.GeoJsonRenderer
 			return Extents;
 		}
 
+		/// <summary>
+		/// Return an Envelope that contains a given position, optionally extending an existing Envelope to encompass it.
+		/// </summary>
+		/// <param name="position">Position to measure.</param>
+		/// <param name="extents">Optional existing envelope to extend. If this is omitted, the returned envelope will have the same dimensions as <paramref name="position"/>.</param>
+		/// <returns>An envelope that contains the <paramref name="position"/> parameter. If <paramref name="extents"/> is populated, that envelope will be extended to contain position.</returns>
 		private static Envelope FindExtents(IPosition position, Envelope extents = null)
 		{
 			var Extents = new Envelope();
@@ -161,8 +216,8 @@ namespace Therezin.GeoJsonRenderer
 			{
 				Extents = extents;
 			}
-			Extents.MinX = new double[] { Extents.MinX, position.Latitude }.Where(v => v != 0).Min();
-			Extents.MinY = new double[] { Extents.MinY, position.Longitude }.Where(v => v != 0).Min();
+			Extents.MinX = new double[] { Extents.MinX, position.Latitude }.Where(v => v != 0).DefaultIfEmpty().Min();
+			Extents.MinY = new double[] { Extents.MinY, position.Longitude }.Where(v => v != 0).DefaultIfEmpty().Min();
 			Extents.MaxX = Math.Max(Extents.MaxX, position.Latitude);
 			Extents.MaxY = Math.Max(Extents.MaxY, position.Longitude);
 			return Extents;

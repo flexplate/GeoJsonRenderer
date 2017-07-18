@@ -11,11 +11,15 @@
 
       },
       "type": "Feature",
-      "properties": { }
+      "properties": {
+        "FLOOR": "G"
+      }
     },
     {
       "type": "Feature",
-      "properties": { },
+      "properties": {
+        "FLOOR": "1"
+      },
       "geometry": {
         "type": "Polygon",
         "coordinates": [
@@ -32,7 +36,9 @@
     },
     {
       "type": "Feature",
-      "properties": null,
+      "properties": {
+        "FLOOR": "G"
+      },
       "geometry": {
         "type": "Point",
         "coordinates": [ 15.87646484375, 44.1748046875 ]

@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Drawing;
-using System.IO;
-using GeoJSON.Net;
-using Newtonsoft.Json;
-using GeoJSON.Net.Geometry;
+﻿using GeoJSON.Net;
 using GeoJSON.Net.Feature;
+using GeoJSON.Net.Geometry;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 
 namespace Therezin.GeoJsonRenderer
 {
@@ -66,18 +63,18 @@ namespace Therezin.GeoJsonRenderer
 		/// <param name="outputPath">Path to output file.</param>
 		/// <param name="width">Desired width of output image in pixels.</param>
 		/// <param name="height">Desired height of output image in pixels.</param>
-		/// <param name="FilterExpression">Method expression to filter JSON strings by.</param>
-		/// <param name="AlternativeStyleFunction">Method expression to determine which of 2 styles a feature should be drawn with.</param>
+		/// <param name="filterExpression">Method expression to filter JSON strings by.</param>
+		/// <param name="alternativeStyleFunction">Method expression to determine which of 2 styles a feature should be drawn with.</param>
 		/// <returns></returns>
-		public bool RenderGeoJson(string json, string outputPath, int width, int height, Func<Feature, bool> FilterExpression = null, Func<Feature, bool> AlternativeStyleFunction = null)
+		public bool RenderGeoJson(string json, string outputPath, int width, int height, Func<Feature, bool> filterExpression = null, Func<Feature, bool> alternativeStyleFunction = null)
 		{
 			var GeoJsonObjects = JsonConvert.DeserializeObject<FeatureCollection>(json);
 
-			if (FilterExpression != null)
+			if (filterExpression != null)
 			{
 				try
 				{
-					var FilteredObjects = new FeatureCollection(GeoJsonObjects.Features.Where(FilterExpression).ToList());
+					var FilteredObjects = new FeatureCollection(GeoJsonObjects.Features.Where(filterExpression).ToList());
 					GeoJsonObjects = FilteredObjects;
 				}
 				catch { };
@@ -98,7 +95,7 @@ namespace Therezin.GeoJsonRenderer
 					DrawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, width, height));
 					foreach (var Item in GeoJsonObjects.Features)
 					{
-						if (AlternativeStyleFunction != null && AlternativeStyleFunction(Item) == true)
+						if (alternativeStyleFunction != null && alternativeStyleFunction(Item) == true)
 						{
 							DrawGeometry(Item.Geometry, OptionalStyle);
 						}
@@ -121,10 +118,10 @@ namespace Therezin.GeoJsonRenderer
 		/// <param name="outputPath">Path to output file.</param>
 		/// <param name="width">Desired width of output image in pixels.</param>
 		/// <param name="height">Desired height of output image in pixels.</param>
-		/// <param name="FilterExpression">Method expression to filter JSON strings by.</param>
-		/// <param name="AlternativeStyleFunction">Method expression to determine which of 2 styles a feature should be drawn with.</param>
+		/// <param name="filterExpression">Method expression to filter JSON strings by.</param>
+		/// <param name="alternativeStyleFunction">Method expression to determine which of 2 styles a feature should be drawn with.</param>
 		/// <returns></returns>
-		public bool RenderGeoJson(string[] json, string outputPath, int width, int height, Func<Feature, bool> FilterExpression = null, Func<Feature, bool> AlternativeStyleFunction = null)
+		public bool RenderGeoJson(string[] json, string outputPath, int width, int height, Func<Feature, bool> filterExpression = null, Func<Feature, bool> alternativeStyleFunction = null)
 		{
 			var Extents = new Envelope();
 			var Objects = new List<FeatureCollection>();
@@ -133,11 +130,11 @@ namespace Therezin.GeoJsonRenderer
 			{
 				var GeoJsonObjects = JsonConvert.DeserializeObject<FeatureCollection>(json[i]);
 
-				if (FilterExpression != null)
+				if (filterExpression != null)
 				{
 					try
 					{
-						var FilteredObjects = new FeatureCollection(GeoJsonObjects.Features.Where(FilterExpression).ToList());
+						var FilteredObjects = new FeatureCollection(GeoJsonObjects.Features.Where(filterExpression).ToList());
 						GeoJsonObjects = FilteredObjects;
 					}
 					catch { };
@@ -169,7 +166,7 @@ namespace Therezin.GeoJsonRenderer
 					{
 						foreach (var Item in GeoJsonObjects.Features)
 						{
-							if (AlternativeStyleFunction != null && AlternativeStyleFunction(Item) == true)
+							if (alternativeStyleFunction != null && alternativeStyleFunction(Item) == true)
 							{
 								DrawGeometry(Item.Geometry, OptionalStyle);
 							}

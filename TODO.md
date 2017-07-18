@@ -17,5 +17,5 @@
 + Zoom to fill			[OK]
 + Zoom to largest layer [OK]
 + Filter by properties	[OK]
-+ Document EVERYTHING
++ Document EVERYTHING   [OK]
 
