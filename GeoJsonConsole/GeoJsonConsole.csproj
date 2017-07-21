@@ -7,7 +7,7 @@
     <ProjectGuid>{7B051A45-86DD-456B-A044-269D741F6357}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Therezin.GeoJsonConsole</RootNamespace>
-    <AssemblyName>GeoJsonRenderer</AssemblyName>
+    <AssemblyName>GeoJsonConsole</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -82,12 +82,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\GeoJsonRenderer\GeoJsonRenderer.csproj">
-      <Project>{745611bd-0582-4813-971b-7908fca6f10d}</Project>
-      <Name>GeoJsonRenderer</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.5.2">
       <Visible>False</Visible>
       <ProductName>Microsoft .NET Framework 4.5.2 %28x86 and x64%29</ProductName>
@@ -98,6 +92,15 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GeoJsonRenderer\GeoJsonRenderer.csproj">
+      <Project>{745611bd-0582-4813-971b-7908fca6f10d}</Project>
+      <Name>GeoJsonRenderer</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="bin\Debug\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

@@ -15,10 +15,7 @@ In order to use GeoJsonRenderer in your projects, you will need to reference the
 ### Construction
 Before using the renderer, it must be instantiated:
 ```C#
-public GeoJsonRenderer(
-    DrawingStyle defaultStyle = null,
-    DrawingStyle optionalStyle = null
-)
+var Renderer = new GeoJsonRenderer(DefaultStyle, OptionalStyle);
 ```
 Both parameters are optional. The default style is a 2-pixel wide green line with no fill, and the optional style (see below) is a 2-pixel maroon outline around red-filled polygons.
 
@@ -29,40 +26,46 @@ Rendering a single GeoJSON string to a file is straightforward:
 var R = new GeoJsonRenderer();
 var Reader = new StreamReader("testdata1.json");
 var Json = Reader.ReadToEnd();
-R.RenderGeoJson(Json, @"D:\TEMP\example1.png", 400, 300);
+R.LoadGeoJson(Json);
+R.FitLayersToPage(640, 480);
+R.SaveImage(@"D:\TEMP\example1.png", 640, 480);
 ```
 #### Multiple GeoJSON strings -> single image file
 Rendering multiple strings to a file is not much more complex:
 ```C#
-var R = new GeoJsonRenderer();
-string[] Filenames = { "test-307-areas.json", "test-307-frame.json", "test-307-perimeter.json", "test-307-text.json" };
-var Jsons = new List<string>();
+string[] Filenames = { "test-areas.json", "test-frame.json", "test-perimeter.json", "test-text.json" };
+string[] Jsons = new string[Filenames.Length];
 foreach (var Name in Filenames)
 {
-	var Reader = new StreamReader(Name);
-	string Text = Reader.ReadToEnd();
-	Jsons.Add(Text);
-	var Features = JsonConvert.DeserializeObject<FeatureCollection>(Text);		
+    var Reader = new StreamReader(Filenames[i]);
+    string Text = Reader.ReadToEnd();
+    Jsons[i] = Text;
 }
-R.RenderGeoJson(Jsons.ToArray(), @"D:\TEMP\example2.png", 640, 480);
-```
-#### Filter expressions
-The optional `filterExpression` parameter allows us to show a particular subset of our GeoJSON:
-```C#
 var R = new GeoJsonRenderer();
-var Reader = new StreamReader("testdata1.json");
-var Json = Reader.ReadToEnd();
-R.RenderGeoJson(Json, @"D:\TEMP\example3.png", 400, 300, (f => f.Properties["FLOOR"].ToString() == "1"));
-``` 
-FilterExpression will accept any method that can take a Feature and return a boolean.
-
+R.LoadGeoJson(Jsons);
+R.FitLayersToPage(640, 480);
+R.SaveImage(@"D:\TEMP\example2.png", 640, 480);
+```
+#### Already deserialised?
+If your GeoJson objects are already deserialised (perhaps you're doing some other processing on them outside of just rendering to an image), you can add them directly:
+```C#
+FeatureCollection Features = JsonConvert.DeserializeObject<FeatureCollection>(json);
+// (Your processing code here)
+var R = new GeoJsonRenderer();
+R.Layers.Add(Features);
+R.FitLayersToPage(640, 480);
+R.SaveImage(@"D:\TEMP\example3.png", 640, 480);
+```
 #### Selective colour
 GeoJsonRenderer's Optional Style is used to highlight Features based on an optional method parameter. Here we want to highlight our ground floor:
 ```C#
 var R = new GeoJsonRenderer();
 var Reader = new StreamReader("testdata1.json");
 var Json = Reader.ReadToEnd();
-R.RenderGeoJson(Json, @"D:\TEMP\example3.png", 400, 300, null, (f => f.Properties["FLOOR"].ToString() == "G"));
+R.LoadGeoJson(Json);
+R.FitLayersToPage(640, 480);
+R.AlternativeStyleFunction = (f => f.Properties.ContainsKey("FLOOR") && f.Properties["FLOOR"].ToString() == "G");
+R.SaveImage(@"D:\TEMP\example4.png", 640, 480);
 ``` 
 AlternativeStyleFunction will accept any method that can take a Feature and return a boolean.
 
@@ -75,7 +78,6 @@ Note that the FillBrush property of a DrawingStyle is only applied to Polygon Ge
 
 ## Future developments
 Note: these ideas may or may not be implemented.
-+ Alternate output options (memorystream etc.)
 + Extend transform methods to be more useful for manipulating GeoJSON outside of a render-to-image context (arbitrary rotation centre etc.)
 + More comprehensive testing, unit tests and so on.
 + Make console app more fully-featured - currently configured through code, it'd be cool to see this made into a proper command-line tool rather than just the bare minimum to spit out a PNG file when I hit F5.

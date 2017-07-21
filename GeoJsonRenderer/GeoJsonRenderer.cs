@@ -5,27 +5,62 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
+using System.Drawing.Imaging;
+using System.IO;
 
 namespace Therezin.GeoJsonRenderer
 {
 	/// <summary>
 	/// Provides methods to render a GeoJSON strings to images.
 	/// </summary>
-	public class GeoJsonRenderer
+	public class GeoJsonRenderer : IDisposable
 	{
 		private Bitmap OutputBitmap;
 		private Graphics DrawingSurface;
 
-		/// <summary>
-		/// Default <seealso cref="Therezin.GeoJsonRenderer.DrawingStyle"/> to use when drawing Features.
-		/// </summary>
-		public DrawingStyle DefaultStyle { get; set; }
+		private DrawingStyle _defaultStyle;
+		private DrawingStyle _optionalStyle;
 
-		/// <summary>
-		/// Optional <seealso cref="DrawingStyle"/> to use when drawing Features, chosen by RenderGeoJson's AlternativeStyleFunction method parameter.
-		/// </summary>
-		public DrawingStyle OptionalStyle { get; set; }
+		/// <summary>List of FeatureCollections to render, drawn FIFO.</summary>
+		public List<FeatureCollection> Layers;
+
+		/// <summary>Method expression to determine which of 2 styles a feature should be drawn with.</summary>
+		public Func<Feature, bool> AlternativeStyleFunction = null;
+
+		/// <summary>Default <seealso cref="Therezin.GeoJsonRenderer.DrawingStyle"/> to use when drawing Features.</summary>
+		public DrawingStyle DefaultStyle
+		{
+			get { return _defaultStyle; }
+			set
+			{
+				if (value != null)
+				{
+					_defaultStyle = value;
+				}
+				else
+				{
+					_defaultStyle = new DrawingStyle(new Pen(Color.Green, 2.0f), null);
+				}
+			}
+		}
+
+		/// <summary>Optional <seealso cref="DrawingStyle"/> to use when drawing Features, chosen by <seealso cref="AlternativeStyleFunction"/> Func property.</summary>
+		public DrawingStyle OptionalStyle
+		{
+			get { return _optionalStyle; }
+			set
+			{
+				if (value != null)
+				{
+					_optionalStyle = value;
+				}
+				else
+				{
+					_optionalStyle = new DrawingStyle(new Pen(Color.Maroon, 2.0f), new SolidBrush(Color.Red));
+				}
+			}
+		}
+
 
 		/// <summary>
 		/// Instantiate a GeoJsonRenderer, optionally with different styles to the defaults.
@@ -34,151 +69,33 @@ namespace Therezin.GeoJsonRenderer
 		/// <param name="optionalStyle">A <seealso cref="DrawingStyle"/> to replace the optional alternative style set by RenderGeoJson's AlternativeStyleFunction method parameter.</param>
 		public GeoJsonRenderer(DrawingStyle defaultStyle = null, DrawingStyle optionalStyle = null)
 		{
-			if (defaultStyle != null)
-			{
-				DefaultStyle = defaultStyle;
-			}
-			else
-			{
-				DefaultStyle = new DrawingStyle(new Pen(Color.Green, 2.0f), null);
-			}
+			DefaultStyle = defaultStyle;
+			OptionalStyle = optionalStyle;
 
-			if (optionalStyle != null)
-			{
-				OptionalStyle = optionalStyle;
-			}
-			else
-			{
-				OptionalStyle = new DrawingStyle(new Pen(Color.Maroon, 2.0f), new SolidBrush(Color.Red));
-			}
+			Layers = new List<FeatureCollection>();
 		}
 
 
-		#region Rendering
+		#region Data Input
 
 		/// <summary>
-		/// Render a GeoJSON string to a PNG image.
+		/// Parse a GeoJSON string and load in into the Layers collection.
 		/// </summary>
-		/// <param name="json">GeoJSON string to render.</param>
-		/// <param name="outputPath">Path to output file.</param>
-		/// <param name="width">Desired width of output image in pixels.</param>
-		/// <param name="height">Desired height of output image in pixels.</param>
-		/// <param name="filterExpression">Method expression to filter JSON strings by.</param>
-		/// <param name="alternativeStyleFunction">Method expression to determine which of 2 styles a feature should be drawn with.</param>
-		/// <returns></returns>
-		public bool RenderGeoJson(string json, string outputPath, int width, int height, Func<Feature, bool> filterExpression = null, Func<Feature, bool> alternativeStyleFunction = null)
+		/// <param name="json">GeoJSON string to parse</param>
+		public void LoadGeoJson(string json)
 		{
-			var GeoJsonObjects = JsonConvert.DeserializeObject<FeatureCollection>(json);
-
-			if (filterExpression != null)
-			{
-				try
-				{
-					var FilteredObjects = new FeatureCollection(GeoJsonObjects.Features.Where(filterExpression).ToList());
-					GeoJsonObjects = FilteredObjects;
-				}
-				catch { };
-			}
-
-			// Zoom to extents
-			GeoJsonObjects = RotateAndScaleFeatures(GeoJsonObjects, width, height);
-			Envelope Extents = Envelope.FindExtents(GeoJsonObjects);
-
-			// Rebase to zero
-			GeoJsonObjects = TranslateFeatures(GeoJsonObjects, Extents);
-
-			// Create canvas
-			using (OutputBitmap = new Bitmap(width, height))
-			{
-				using (DrawingSurface = Graphics.FromImage(OutputBitmap))
-				{
-					DrawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, width, height));
-					foreach (var Item in GeoJsonObjects.Features)
-					{
-						if (alternativeStyleFunction != null && alternativeStyleFunction(Item) == true)
-						{
-							DrawGeometry(Item.Geometry, OptionalStyle);
-						}
-						else
-						{
-							DrawGeometry(Item.Geometry, DefaultStyle);
-						}
-					}
-					OutputBitmap.Save(outputPath);
-					return true;
-				}
-			}
+			Layers.Add(JsonConvert.DeserializeObject<FeatureCollection>(json));
 		}
 
 		/// <summary>
-		/// Render an array of GeoJSON strings to a PNG image.
+		/// Parse a selection of GeoJSON strings and load them into the Layers collection.
 		/// </summary>
-		/// <param name="json">GeoJSON strings to render. Strings are processed in order.
-		/// The extents of the first layer are used for all further layers.</param>
-		/// <param name="outputPath">Path to output file.</param>
-		/// <param name="width">Desired width of output image in pixels.</param>
-		/// <param name="height">Desired height of output image in pixels.</param>
-		/// <param name="filterExpression">Method expression to filter JSON strings by.</param>
-		/// <param name="alternativeStyleFunction">Method expression to determine which of 2 styles a feature should be drawn with.</param>
-		/// <returns></returns>
-		public bool RenderGeoJson(string[] json, string outputPath, int width, int height, Func<Feature, bool> filterExpression = null, Func<Feature, bool> alternativeStyleFunction = null)
+		/// <param name="jsonArray">String array to parse.</param>
+		public void LoadGeoJson(string[] jsonArray)
 		{
-			var Extents = new Envelope();
-			var Objects = new List<FeatureCollection>();
-
-			for (int i = 0; i < json.Length; i++)
+			for (int i = 0; i < jsonArray.Length; i++)
 			{
-				var GeoJsonObjects = JsonConvert.DeserializeObject<FeatureCollection>(json[i]);
-
-				if (filterExpression != null)
-				{
-					try
-					{
-						var FilteredObjects = new FeatureCollection(GeoJsonObjects.Features.Where(filterExpression).ToList());
-						GeoJsonObjects = FilteredObjects;
-					}
-					catch { };
-				}
-				Objects.Add(GeoJsonObjects);
-			}
-			// Get extents of largest collection.
-			Extents = Envelope.FindExtents(Objects);
-			for (int i = 0; i < Objects.Count; i++)
-			{
-				Objects[i] = RotateAndScaleFeatures(Objects[i], width, height, extents: Extents);
-			}
-
-			// Get extents of largest collection again.
-			Extents = Envelope.FindExtents(Objects);
-			for (int i = 0; i < Objects.Count; i++)
-			{
-				// Rebase to zero
-				Objects[i] = TranslateFeatures(Objects[i], Extents);
-			}
-
-			// Create canvas
-			using (OutputBitmap = new Bitmap(width, height))
-			{
-				using (DrawingSurface = Graphics.FromImage(OutputBitmap))
-				{
-					DrawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, width, height));
-					foreach (var GeoJsonObjects in Objects)
-					{
-						foreach (var Item in GeoJsonObjects.Features)
-						{
-							if (alternativeStyleFunction != null && alternativeStyleFunction(Item) == true)
-							{
-								DrawGeometry(Item.Geometry, OptionalStyle);
-							}
-							else
-							{
-								DrawGeometry(Item.Geometry, DefaultStyle);
-							}
-						}
-					}
-					OutputBitmap.Save(outputPath);
-					return true;
-				}
+				Layers.Add(JsonConvert.DeserializeObject<FeatureCollection>(jsonArray[i]));
 			}
 		}
 
@@ -186,6 +103,24 @@ namespace Therezin.GeoJsonRenderer
 
 		#region Transformation
 
+		/// <summary>
+		/// Rotate, scale and translate the Layers collection to fit within the specified pixel dimensions.
+		/// </summary>
+		/// <param name="width">Desired width of output image in pixels.</param>
+		/// <param name="height">Desired height of output image in pixels.</param>
+		public void FitLayersToPage(int width, int height)
+		{
+			Envelope Extents = Envelope.FindExtents(Layers);
+			for (int i = 0; i < Layers.Count; i++)
+			{
+				Layers[i] = RotateAndScaleFeatures(Layers[i], width, height, extents: Extents);
+			}
+			Extents = Envelope.FindExtents(Layers);
+			for (int i = 0; i < Layers.Count; i++)
+			{
+				Layers[i] = TranslateFeatures(Layers[i], Extents);
+			}
+		}
 
 		/// <summary>
 		/// Rotate and scale all features in a FeatureCollection to fit inside a box.
@@ -478,7 +413,66 @@ namespace Therezin.GeoJsonRenderer
 
 		#endregion
 
+		#region Rendering
+
+		/// <summary>
+		/// Render our geometry collection to a Bitmap's Graphics object.
+		/// </summary>
+		private void RenderLayers(int width, int height)
+		{
+			OutputBitmap = new Bitmap(width, height);
+			DrawingSurface = Graphics.FromImage(OutputBitmap);
+
+			DrawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, OutputBitmap.Width, OutputBitmap.Height));
+
+			foreach (var Layer in Layers)
+			{
+				foreach (var Item in Layer.Features)
+				{
+					if (AlternativeStyleFunction != null && AlternativeStyleFunction(Item) == true)
+					{
+						DrawGeometry(Item.Geometry, OptionalStyle);
+					}
+					else
+					{
+						DrawGeometry(Item.Geometry, DefaultStyle);
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Render the <see cref="Layers"/> collection to an image file.
+		/// </summary>
+		/// <param name="path">Path to output file.</param>
+		/// <param name="width">Desired width of output image in pixels.</param>
+		/// <param name="height">Desired height of output image in pixels.</param>
+		public bool SaveImage(string path, int width, int height)
+		{
+			RenderLayers(width, height);
+			OutputBitmap.Save(path);
+			return true;
+		}
+
+		/// <summary>
+		/// Render the <see cref="Layers"/> collection to an image in the form of a MemoryStream.
+		/// </summary>
+		/// <param name="width"></param>
+		/// <param name="height"></param>
+		/// <returns></returns>
+		public MemoryStream ToStream(int width, int height)
+		{
+			RenderLayers(width, height);
+			var OutputStream = new MemoryStream();
+			OutputBitmap.Save(OutputStream, ImageFormat.Png);
+			return OutputStream;
+		}
+
+		#endregion
+
 		#region Drawing
+		
+
 
 		/// <summary>
 		/// Recursively draw a geometry object.
@@ -523,7 +517,7 @@ namespace Therezin.GeoJsonRenderer
 				default:
 					break;
 			}
-					}
+		}
 
 		#endregion
 
@@ -542,6 +536,31 @@ namespace Therezin.GeoJsonRenderer
 			return OutList.ToArray();
 		}
 
+		#endregion
+
+		#region IDisposable Support
+		private bool disposedValue = false; // To detect redundant calls
+
+		///<summary>This code added to correctly implement the disposable pattern.</summary> 
+		protected virtual void Dispose(bool disposing)
+		{
+			if (!disposedValue)
+			{
+				if (disposing)
+				{
+					DrawingSurface.Dispose();
+					OutputBitmap.Dispose();
+				}
+				disposedValue = true;
+			}
+		}
+
+		///<summary>This code added to correctly implement the disposable pattern.</summary> 
+		public void Dispose()
+		{
+			// Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+			Dispose(true);
+		}
 		#endregion
 
 	}
