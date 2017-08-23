@@ -134,20 +134,13 @@ namespace Therezin.GeoJsonRenderer
 		/// <returns></returns>
 		public FeatureCollection RotateAndScaleFeatures(FeatureCollection features, int width, int height, double rotateRadians = 4.7124, bool? rotate = null, Envelope extents = null)
 		{
-			Envelope Extents = extents != null ? extents : Envelope.FindExtents(features);
+			Envelope Extents = extents ?? Envelope.FindExtents(features);
 
 			double OutputAspect = width / (double)height;
 			// If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
-			bool Rotate = rotate != null ? (bool)rotate : (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
-			double ScaleFactor;
-			if (Rotate)
-			{
-				ScaleFactor = height / Extents.Width;
-			}
-			else
-			{
-				ScaleFactor = width / Extents.Width;
-			}
+			bool Rotate = rotate ?? (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
+			double ScaleFactor = Math.Max(width, height) / Math.Max(Extents.Width, Extents.Height);
+			
 			var OutCollection = new FeatureCollection();
 			for (int i = 0; i < features.Features.Count; i++)
 			{
@@ -370,7 +363,7 @@ namespace Therezin.GeoJsonRenderer
 		/// <returns></returns>
 		private IPosition TranslatePosition(IPosition coordinates, Envelope envelope)
 		{
-			return new Position(coordinates.Latitude - envelope.MinX, coordinates.Longitude - envelope.MinY);
+			return new Position(coordinates.Longitude + (0 - envelope.MinX), coordinates.Latitude + (0 - envelope.MinY));
 		}
 
 		#endregion
@@ -471,7 +464,7 @@ namespace Therezin.GeoJsonRenderer
 		#endregion
 
 		#region Drawing
-		
+
 
 
 		/// <summary>

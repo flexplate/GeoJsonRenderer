@@ -81,3 +81,4 @@ Note: these ideas may or may not be implemented.
 + Extend transform methods to be more useful for manipulating GeoJSON outside of a render-to-image context (arbitrary rotation centre etc.)
 + More comprehensive testing, unit tests and so on.
 + Make console app more fully-featured - currently configured through code, it'd be cool to see this made into a proper command-line tool rather than just the bare minimum to spit out a PNG file when I hit F5.
++ Extend styling options to include different styles per layer.
