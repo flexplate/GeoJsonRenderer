@@ -140,7 +140,7 @@ namespace Therezin.GeoJsonRenderer
 			// If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
 			bool Rotate = rotate ?? (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
 			double ScaleFactor = Math.Max(width, height) / Math.Max(Extents.Width, Extents.Height);
-			
+
 			var OutCollection = new FeatureCollection();
 			for (int i = 0; i < features.Features.Count; i++)
 			{
@@ -416,6 +416,11 @@ namespace Therezin.GeoJsonRenderer
 			OutputBitmap = new Bitmap(width, height);
 			DrawingSurface = Graphics.FromImage(OutputBitmap);
 
+			// Graphics origin is top-left, so we must flip its coordinate system.
+			DrawingSurface.TranslateTransform(0, height);
+			DrawingSurface.ScaleTransform(1, -1);
+
+			// Fill canvas with white.
 			DrawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, OutputBitmap.Width, OutputBitmap.Height));
 
 			foreach (var Layer in Layers)
@@ -432,6 +437,7 @@ namespace Therezin.GeoJsonRenderer
 					}
 				}
 			}
+
 		}
 
 		/// <summary>
