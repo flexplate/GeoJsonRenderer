@@ -139,6 +139,7 @@ namespace Therezin.GeoJsonRenderer
 			double OutputAspect = width / (double)height;
 			// If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
 			bool Rotate = rotate ?? (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
+			if (Rotate == false) { rotateRadians = 0; }
 			double ScaleFactor = Math.Max(width, height) / Math.Max(Extents.Width, Extents.Height);
 
 			var OutCollection = new FeatureCollection();
