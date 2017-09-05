@@ -106,16 +106,29 @@ namespace Therezin.GeoJsonRenderer
 		/// <summary>
 		/// Rotate, scale and translate the Layers collection to fit within the specified pixel dimensions.
 		/// </summary>
-		/// <param name="width">Desired width of output image in pixels.</param>
-		/// <param name="height">Desired height of output image in pixels.</param>
-		public void FitLayersToPage(int width, int height)
+		/// <param name="width">Desired width of output image in pixels, including border size (if any).</param>
+		/// <param name="height">Desired height of output image in pixels, including border size (if any).</param>
+		/// <param name="borderSize">Size of border to add to output image.</param>
+		public void FitLayersToPage(int width, int height, int borderSize = 0)
 		{
+			int ContentWidth = width;
+			int ContentHeight = height;
+			if (borderSize > 0)
+			{
+				ContentWidth = ContentWidth - borderSize * 2;
+				ContentHeight = ContentHeight - borderSize * 2;
+			}
+
 			Envelope Extents = Envelope.FindExtents(Layers);
 			for (int i = 0; i < Layers.Count; i++)
 			{
-				Layers[i] = RotateAndScaleFeatures(Layers[i], width, height, extents: Extents);
+				Layers[i] = RotateAndScaleFeatures(Layers[i], ContentWidth, ContentHeight, extents: Extents);
 			}
 			Extents = Envelope.FindExtents(Layers);
+			if (borderSize > 0)
+			{
+				Extents.Offset(-borderSize, -borderSize);
+			}
 			for (int i = 0; i < Layers.Count; i++)
 			{
 				Layers[i] = TranslateFeatures(Layers[i], Extents);

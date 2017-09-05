@@ -76,6 +76,15 @@ R.OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Col
 ```
 Note that the FillBrush property of a DrawingStyle is only applied to Polygon Geometries - LineStrings that completely enclose an area will not be treated as polygons unless they are defined as such.
 
+#### Adding a margin
+The FitLayersToPage method accepts an optional parameter to add a margin (hence, keeping content from going right to the edge of the rendered image) as follows:
+```C#
+R = new GeoJsonRenderer();
+R.LoadGeoJson(Json);
+R.FitLayersToPage(640, 480, 20);    // 20-pixel margin
+R.SaveImage(@"D:\TEMP\example5.png", 640, 480);
+```
+
 ## Future developments
 Note: these ideas may or may not be implemented.
 + Extend transform methods to be more useful for manipulating GeoJSON outside of a render-to-image context (arbitrary rotation centre etc.)

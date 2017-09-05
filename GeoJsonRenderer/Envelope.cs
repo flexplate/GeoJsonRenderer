@@ -124,6 +124,19 @@ namespace Therezin.GeoJsonRenderer
 		}
 
 		/// <summary>
+		/// Translate extents by given distances.
+		/// </summary>
+		/// <param name="x">Distance to offset in x-direction</param>
+		/// <param name="y">Distance to offset in y-direction</param>
+		internal void Offset(int x, int y)
+		{
+			MinX += x;
+			MaxX += x;
+			MinY += y;
+			MaxY += y;
+		}
+
+		/// <summary>
 		/// Find the smallest bounding box that can contain all provided GeometryObjects, optionally extending an existing Envelope.
 		/// </summary>
 		/// <param name="geoJsonObjects">Collection of IGeometrryObjects to  measure.</param>
