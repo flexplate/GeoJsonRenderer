@@ -15,9 +15,18 @@ In order to use GeoJsonRenderer in your projects, you will need to reference the
 ### Construction
 Before using the renderer, it must be instantiated:
 ```C#
-var Renderer = new GeoJsonRenderer(DefaultStyle, OptionalStyle);
+var Renderer = new GeoJsonRenderer(DefaultStyle);
 ```
-Both parameters are optional. The default style is a 2-pixel wide green line with no fill, and the optional style (see below) is a 2-pixel maroon outline around red-filled polygons.
+The styling parameter is optional. The default style is a 2-pixel wide green line with no fill.
+
+### Styling
+We can also change the default rendering style by instantiating a DrawingStyle object. The constructor takes the form `new DrawingStyle(System.Drawing.Pen LinePen, System.Drawing.Brush FillBrush)`.
+```C#
+var R = new GeoJsonRenderer();
+R.DefaultStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
+```
+Note that the FillBrush property of a DrawingStyle is only applied to Polygon Geometries - LineStrings that completely enclose an area will not be treated as polygons unless they are defined as such.
+
 
 ### Examples
 #### Single GeoJSON string -> image file
@@ -57,24 +66,25 @@ R.FitLayersToPage(640, 480);
 R.SaveImage(@"D:\TEMP\example3.png", 640, 480);
 ```
 #### Selective colour
-GeoJsonRenderer's Optional Style is used to highlight Features based on an optional method parameter. Here we want to highlight our ground floor:
+GeoJsonRenderer raises an event before drawing each feature. We can handle that event to style features based on their properties. Here we want to highlight our ground floor:
+##### Main():
 ```C#
-var R = new GeoJsonRenderer();
-var Reader = new StreamReader("testdata1.json");
-var Json = Reader.ReadToEnd();
+var reader = new StreamReader("testdata1.json");
+var Json = reader.ReadToEnd();
+var R = new GeoJsonRenderer();			
+R.DrawingFeature += R_DrawingFeature;
 R.LoadGeoJson(Json);
 R.FitLayersToPage(640, 480);
-R.AlternativeStyleFunction = (f => f.Properties.ContainsKey("FLOOR") && f.Properties["FLOOR"].ToString() == "G");
 R.SaveImage(@"D:\TEMP\example4.png", 640, 480);
 ``` 
-AlternativeStyleFunction will accept any method that can take a Feature and return a boolean.
-
-We can also change the default and optional rendering styles:
+##### R_DrawingFeature():
 ```C#
-var R = new GeoJsonRenderer();
-R.OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
+var OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
+if (e.Feature.Properties.ContainsKey("FLOOR") && e.Feature.Properties["FLOOR"].ToString() == "1")
+{
+	e.Style = OptionalStyle;
+}
 ```
-Note that the FillBrush property of a DrawingStyle is only applied to Polygon Geometries - LineStrings that completely enclose an area will not be treated as polygons unless they are defined as such.
 
 #### Adding a margin
 The FitLayersToPage method accepts an optional parameter to add a margin (hence, keeping content from going right to the edge of the rendered image) as follows:
@@ -90,4 +100,3 @@ Note: these ideas may or may not be implemented.
 + Extend transform methods to be more useful for manipulating GeoJSON outside of a render-to-image context (arbitrary rotation centre etc.)
 + More comprehensive testing, unit tests and so on.
 + Make console app more fully-featured - currently configured through code, it'd be cool to see this made into a proper command-line tool rather than just the bare minimum to spit out a PNG file when I hit F5.
-+ Extend styling options to include different styles per layer.

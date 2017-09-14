@@ -19,13 +19,12 @@ namespace Therezin.GeoJsonRenderer
 		private Graphics DrawingSurface;
 
 		private DrawingStyle _defaultStyle;
-		private DrawingStyle _optionalStyle;
+
+		/// <summary>Raised immediately before drawing each feature to facilitate custom styling.</summary>
+		public event EventHandler<DrawingFeatureEventArgs> DrawingFeature;
 
 		/// <summary>List of FeatureCollections to render, drawn FIFO.</summary>
 		public List<FeatureCollection> Layers;
-
-		/// <summary>Method expression to determine which of 2 styles a feature should be drawn with.</summary>
-		public Func<Feature, bool> AlternativeStyleFunction = null;
 
 		/// <summary>Default <seealso cref="Therezin.GeoJsonRenderer.DrawingStyle"/> to use when drawing Features.</summary>
 		public DrawingStyle DefaultStyle
@@ -44,34 +43,13 @@ namespace Therezin.GeoJsonRenderer
 			}
 		}
 
-		/// <summary>Optional <seealso cref="DrawingStyle"/> to use when drawing Features, chosen by <seealso cref="AlternativeStyleFunction"/> Func property.</summary>
-		public DrawingStyle OptionalStyle
-		{
-			get { return _optionalStyle; }
-			set
-			{
-				if (value != null)
-				{
-					_optionalStyle = value;
-				}
-				else
-				{
-					_optionalStyle = new DrawingStyle(new Pen(Color.Maroon, 2.0f), new SolidBrush(Color.Red));
-				}
-			}
-		}
-
-
 		/// <summary>
 		/// Instantiate a GeoJsonRenderer, optionally with different styles to the defaults.
 		/// </summary>
 		/// <param name="defaultStyle">A <seealso cref="DrawingStyle"/> to replace the default style.</param>
-		/// <param name="optionalStyle">A <seealso cref="DrawingStyle"/> to replace the optional alternative style set by RenderGeoJson's AlternativeStyleFunction method parameter.</param>
-		public GeoJsonRenderer(DrawingStyle defaultStyle = null, DrawingStyle optionalStyle = null)
+		public GeoJsonRenderer(DrawingStyle defaultStyle = null)
 		{
 			DefaultStyle = defaultStyle;
-			OptionalStyle = optionalStyle;
-
 			Layers = new List<FeatureCollection>();
 		}
 
@@ -441,14 +419,7 @@ namespace Therezin.GeoJsonRenderer
 			{
 				foreach (var Item in Layer.Features)
 				{
-					if (AlternativeStyleFunction != null && AlternativeStyleFunction(Item) == true)
-					{
-						DrawGeometry(Item.Geometry, OptionalStyle);
-					}
-					else
-					{
-						DrawGeometry(Item.Geometry, DefaultStyle);
-					}
+					DrawFeature(Item);
 				}
 			}
 
@@ -485,7 +456,16 @@ namespace Therezin.GeoJsonRenderer
 
 		#region Drawing
 
-
+		/// <summary>
+		/// Take a feature and draw its geometry. This raises an event so the user can style the feature how they want.
+		/// </summary>
+		/// <param name="feature"></param>
+		private void DrawFeature(Feature feature)
+		{
+			var FeatureArguments = new DrawingFeatureEventArgs(feature, DefaultStyle);
+			DrawingFeature?.Invoke(this, FeatureArguments);
+			DrawGeometry(feature.Geometry, FeatureArguments.Style);
+		}
 
 		/// <summary>
 		/// Recursively draw a geometry object.
