@@ -1,12 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.15
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeoJsonRenderer", "GeoJsonRenderer\GeoJsonRenderer.csproj", "{745611BD-0582-4813-971B-7908FCA6F10D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{FC6FE996-AE21-4F7F-A4B3-EAE5D06F5476}"
 	ProjectSection(SolutionItems) = preProject
+		CODE_OF_CONDUCT.md = CODE_OF_CONDUCT.md
 		LICENSE.md = LICENSE.md
 		README.md = README.md
 		TODO.md = TODO.md
