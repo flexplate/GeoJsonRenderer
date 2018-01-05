@@ -10,13 +10,21 @@ namespace GeoJsonConsole
 		{
 			var reader = new StreamReader("testdata1.json");
 			var Json = reader.ReadToEnd();
-
-			var R = new GeoJsonRenderer();
-			R.OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
-			R.AlternativeStyleFunction = (f => f.Properties.ContainsKey("FLOOR") && f.Properties["FLOOR"].ToString() == "1");
+			var R = new GeoJsonRenderer();			
+			R.DrawingFeature += R_DrawingFeature;
 			R.LoadGeoJson(Json);
-			R.FitLayersToPage(1280, 800);
-			R.SaveImage(@"D:\TEMP\example1.png", 640, 480);
+			R.FitLayersToPage(640, 480);
+			R.SaveImage(@"D:\TEMP\example4.png", 640, 480);
+			R.Dispose();			
+		}
+
+		private static void R_DrawingFeature(object sender, DrawingFeatureEventArgs e)
+		{
+			var OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
+			if (e.Feature.Properties.ContainsKey("FLOOR") && e.Feature.Properties["FLOOR"].ToString() == "1")
+			{
+				e.Style = OptionalStyle;
+			}
 		}
 	}
 }

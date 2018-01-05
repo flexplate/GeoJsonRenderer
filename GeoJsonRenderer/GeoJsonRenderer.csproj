@@ -51,6 +51,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DrawingFeatureEventArgs.cs" />
     <Compile Include="DrawingStyle.cs" />
     <Compile Include="Envelope.cs" />
     <Compile Include="GeoJsonRenderer.cs" />

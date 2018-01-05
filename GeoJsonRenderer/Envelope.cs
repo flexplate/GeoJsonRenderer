@@ -95,8 +95,8 @@ namespace Therezin.GeoJsonRenderer
 				// Confusing syntax: Uses LINQ to find smallest, excluding 0. Not actually an array of doubles.
 				Extents.MinX = new double[] { Extents.MinX, CollectionExtents.MinX }.Where(v => v != 0).DefaultIfEmpty().Min();
 				Extents.MinY = new double[] { Extents.MinY, CollectionExtents.MinY }.Where(v => v != 0).DefaultIfEmpty().Min();
-				Extents.MaxX = Math.Max(Extents.MaxX, CollectionExtents.MaxX);
-				Extents.MaxY = Math.Max(Extents.MaxY, CollectionExtents.MaxY);
+				Extents.MaxX = new double[] { Extents.MaxX, CollectionExtents.MaxX }.Where(v => v != 0).DefaultIfEmpty().Max();
+				Extents.MaxY = new double[] { Extents.MaxY, CollectionExtents.MaxY }.Where(v => v != 0).DefaultIfEmpty().Max();
 			}
 			return Extents;
 		}
@@ -121,6 +121,19 @@ namespace Therezin.GeoJsonRenderer
 				Geometries.Add(Feature.Geometry);
 			}
 			return FindExtents(Geometries, Extents);
+		}
+
+		/// <summary>
+		/// Translate extents by given distances.
+		/// </summary>
+		/// <param name="x">Distance to offset in x-direction</param>
+		/// <param name="y">Distance to offset in y-direction</param>
+		internal void Offset(int x, int y)
+		{
+			MinX += x;
+			MaxX += x;
+			MinY += y;
+			MaxY += y;
 		}
 
 		/// <summary>
@@ -216,10 +229,10 @@ namespace Therezin.GeoJsonRenderer
 			{
 				Extents = extents;
 			}
-			Extents.MinX = new double[] { Extents.MinX, position.Latitude }.Where(v => v != 0).DefaultIfEmpty().Min();
-			Extents.MinY = new double[] { Extents.MinY, position.Longitude }.Where(v => v != 0).DefaultIfEmpty().Min();
-			Extents.MaxX = Math.Max(Extents.MaxX, position.Latitude);
-			Extents.MaxY = Math.Max(Extents.MaxY, position.Longitude);
+			Extents.MinX = new double[] { Extents.MinX, position.Longitude }.Where(v => v != 0).DefaultIfEmpty().Min();
+			Extents.MinY = new double[] { Extents.MinY, position.Latitude }.Where(v => v != 0).DefaultIfEmpty().Min();
+			Extents.MaxX = new double[] { Extents.MaxX, position.Longitude }.Where(v => v != 0).DefaultIfEmpty().Max();
+			Extents.MaxY = new double[] { Extents.MaxY, position.Latitude }.Where(v => v != 0).DefaultIfEmpty().Max();
 			return Extents;
 		}
 	}

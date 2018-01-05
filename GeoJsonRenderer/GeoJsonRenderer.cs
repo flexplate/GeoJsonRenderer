@@ -19,13 +19,12 @@ namespace Therezin.GeoJsonRenderer
 		private Graphics DrawingSurface;
 
 		private DrawingStyle _defaultStyle;
-		private DrawingStyle _optionalStyle;
+
+		/// <summary>Raised immediately before drawing each feature to facilitate custom styling.</summary>
+		public event EventHandler<DrawingFeatureEventArgs> DrawingFeature;
 
 		/// <summary>List of FeatureCollections to render, drawn FIFO.</summary>
 		public List<FeatureCollection> Layers;
-
-		/// <summary>Method expression to determine which of 2 styles a feature should be drawn with.</summary>
-		public Func<Feature, bool> AlternativeStyleFunction = null;
 
 		/// <summary>Default <seealso cref="Therezin.GeoJsonRenderer.DrawingStyle"/> to use when drawing Features.</summary>
 		public DrawingStyle DefaultStyle
@@ -44,34 +43,13 @@ namespace Therezin.GeoJsonRenderer
 			}
 		}
 
-		/// <summary>Optional <seealso cref="DrawingStyle"/> to use when drawing Features, chosen by <seealso cref="AlternativeStyleFunction"/> Func property.</summary>
-		public DrawingStyle OptionalStyle
-		{
-			get { return _optionalStyle; }
-			set
-			{
-				if (value != null)
-				{
-					_optionalStyle = value;
-				}
-				else
-				{
-					_optionalStyle = new DrawingStyle(new Pen(Color.Maroon, 2.0f), new SolidBrush(Color.Red));
-				}
-			}
-		}
-
-
 		/// <summary>
 		/// Instantiate a GeoJsonRenderer, optionally with different styles to the defaults.
 		/// </summary>
 		/// <param name="defaultStyle">A <seealso cref="DrawingStyle"/> to replace the default style.</param>
-		/// <param name="optionalStyle">A <seealso cref="DrawingStyle"/> to replace the optional alternative style set by RenderGeoJson's AlternativeStyleFunction method parameter.</param>
-		public GeoJsonRenderer(DrawingStyle defaultStyle = null, DrawingStyle optionalStyle = null)
+		public GeoJsonRenderer(DrawingStyle defaultStyle = null)
 		{
 			DefaultStyle = defaultStyle;
-			OptionalStyle = optionalStyle;
-
 			Layers = new List<FeatureCollection>();
 		}
 
@@ -106,16 +84,29 @@ namespace Therezin.GeoJsonRenderer
 		/// <summary>
 		/// Rotate, scale and translate the Layers collection to fit within the specified pixel dimensions.
 		/// </summary>
-		/// <param name="width">Desired width of output image in pixels.</param>
-		/// <param name="height">Desired height of output image in pixels.</param>
-		public void FitLayersToPage(int width, int height)
+		/// <param name="width">Desired width of output image in pixels, including border size (if any).</param>
+		/// <param name="height">Desired height of output image in pixels, including border size (if any).</param>
+		/// <param name="borderSize">Size of border to add to output image.</param>
+		public void FitLayersToPage(int width, int height, int borderSize = 0)
 		{
+			int ContentWidth = width;
+			int ContentHeight = height;
+			if (borderSize > 0)
+			{
+				ContentWidth = ContentWidth - borderSize * 2;
+				ContentHeight = ContentHeight - borderSize * 2;
+			}
+
 			Envelope Extents = Envelope.FindExtents(Layers);
 			for (int i = 0; i < Layers.Count; i++)
 			{
-				Layers[i] = RotateAndScaleFeatures(Layers[i], width, height, extents: Extents);
+				Layers[i] = RotateAndScaleFeatures(Layers[i], ContentWidth, ContentHeight, extents: Extents);
 			}
 			Extents = Envelope.FindExtents(Layers);
+			if (borderSize > 0)
+			{
+				Extents.Offset(-borderSize, -borderSize);
+			}
 			for (int i = 0; i < Layers.Count; i++)
 			{
 				Layers[i] = TranslateFeatures(Layers[i], Extents);
@@ -134,20 +125,14 @@ namespace Therezin.GeoJsonRenderer
 		/// <returns></returns>
 		public FeatureCollection RotateAndScaleFeatures(FeatureCollection features, int width, int height, double rotateRadians = 4.7124, bool? rotate = null, Envelope extents = null)
 		{
-			Envelope Extents = extents != null ? extents : Envelope.FindExtents(features);
+			Envelope Extents = extents ?? Envelope.FindExtents(features);
 
 			double OutputAspect = width / (double)height;
 			// If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
-			bool Rotate = rotate != null ? (bool)rotate : (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
-			double ScaleFactor;
-			if (Rotate)
-			{
-				ScaleFactor = height / Extents.Width;
-			}
-			else
-			{
-				ScaleFactor = width / Extents.Width;
-			}
+			bool Rotate = rotate ?? (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
+			if (Rotate == false) { rotateRadians = 0; }
+			double ScaleFactor = Math.Max(width, height) / Math.Max(Extents.Width, Extents.Height);
+
 			var OutCollection = new FeatureCollection();
 			for (int i = 0; i < features.Features.Count; i++)
 			{
@@ -370,7 +355,7 @@ namespace Therezin.GeoJsonRenderer
 		/// <returns></returns>
 		private IPosition TranslatePosition(IPosition coordinates, Envelope envelope)
 		{
-			return new Position(coordinates.Latitude - envelope.MinX, coordinates.Longitude - envelope.MinY);
+			return new Position(coordinates.Longitude + (0 - envelope.MinX), coordinates.Latitude + (0 - envelope.MinY));
 		}
 
 		#endregion
@@ -423,22 +408,21 @@ namespace Therezin.GeoJsonRenderer
 			OutputBitmap = new Bitmap(width, height);
 			DrawingSurface = Graphics.FromImage(OutputBitmap);
 
+			// Graphics origin is top-left, so we must flip its coordinate system.
+			DrawingSurface.TranslateTransform(0, height);
+			DrawingSurface.ScaleTransform(1, -1);
+
+			// Fill canvas with white.
 			DrawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, OutputBitmap.Width, OutputBitmap.Height));
 
 			foreach (var Layer in Layers)
 			{
 				foreach (var Item in Layer.Features)
 				{
-					if (AlternativeStyleFunction != null && AlternativeStyleFunction(Item) == true)
-					{
-						DrawGeometry(Item.Geometry, OptionalStyle);
-					}
-					else
-					{
-						DrawGeometry(Item.Geometry, DefaultStyle);
-					}
+					DrawFeature(Item);
 				}
 			}
+
 		}
 
 		/// <summary>
@@ -471,8 +455,17 @@ namespace Therezin.GeoJsonRenderer
 		#endregion
 
 		#region Drawing
-		
 
+		/// <summary>
+		/// Take a feature and draw its geometry. This raises an event so the user can style the feature how they want.
+		/// </summary>
+		/// <param name="feature"></param>
+		private void DrawFeature(Feature feature)
+		{
+			var FeatureArguments = new DrawingFeatureEventArgs(feature, DefaultStyle);
+			DrawingFeature?.Invoke(this, FeatureArguments);
+			DrawGeometry(feature.Geometry, FeatureArguments.Style);
+		}
 
 		/// <summary>
 		/// Recursively draw a geometry object.
