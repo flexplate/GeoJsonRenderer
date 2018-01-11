@@ -43,7 +43,7 @@ namespace Therezin.GeoJsonRenderer
 		/// <summary>
 		/// Height of the envelope (Latitude, in arbitrary units).
 		/// </summary>
-		/// <remarks>Note: not the height in 3-dimensional space.</remarks>
+		/// <remarks>Note: not the height in 3-dimensional space. Envelope is a purely 2-dimensional construct.</remarks>
 		public double Height
 		{
 			get { return MaxY - MinY; }

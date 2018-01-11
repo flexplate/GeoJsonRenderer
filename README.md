@@ -32,12 +32,14 @@ Note that the FillBrush property of a DrawingStyle is only applied to Polygon Ge
 #### Single GeoJSON string -> image file
 Rendering a single GeoJSON string to a file is straightforward:
 ```C#
-var R = new GeoJsonRenderer();
-var Reader = new StreamReader("testdata1.json");
-var Json = Reader.ReadToEnd();
-R.LoadGeoJson(Json);
-R.FitLayersToPage(640, 480);
-R.SaveImage(@"D:\TEMP\example1.png", 640, 480);
+using(var R = new GeoJsonRenderer())
+{
+    var Reader = new StreamReader("testdata1.json");
+    var Json = Reader.ReadToEnd();
+    R.LoadGeoJson(Json);
+    R.FitLayersToPage(640, 480);
+    R.SaveImage(@"D:\TEMP\example1.png");
+}
 ```
 #### Multiple GeoJSON strings -> single image file
 Rendering multiple strings to a file is not much more complex:
@@ -50,20 +52,24 @@ foreach (var Name in Filenames)
     string Text = Reader.ReadToEnd();
     Jsons[i] = Text;
 }
-var R = new GeoJsonRenderer();
-R.LoadGeoJson(Jsons);
-R.FitLayersToPage(640, 480);
-R.SaveImage(@"D:\TEMP\example2.png", 640, 480);
+using(var R = new GeoJsonRenderer())
+{
+    R.LoadGeoJson(Jsons);
+    R.FitLayersToPage(640, 480);
+    R.SaveImage(@"D:\TEMP\example2.png");
+}
 ```
 #### Already deserialised?
 If your GeoJson objects are already deserialised (perhaps you're doing some other processing on them outside of just rendering to an image), you can add them directly:
 ```C#
 FeatureCollection Features = JsonConvert.DeserializeObject<FeatureCollection>(json);
 // (Your processing code here)
-var R = new GeoJsonRenderer();
-R.Layers.Add(Features);
-R.FitLayersToPage(640, 480);
-R.SaveImage(@"D:\TEMP\example3.png", 640, 480);
+using(var R = new GeoJsonRenderer())
+{
+    R.Layers.Add(Features);
+    R.FitLayersToPage(640, 480);
+    R.SaveImage(@"D:\TEMP\example3.png");
+}
 ```
 #### Selective colour
 GeoJsonRenderer raises an event before drawing each feature. We can handle that event to style features based on their properties. Here we want to highlight our ground floor:
@@ -71,11 +77,13 @@ GeoJsonRenderer raises an event before drawing each feature. We can handle that 
 ```C#
 var reader = new StreamReader("testdata1.json");
 var Json = reader.ReadToEnd();
-var R = new GeoJsonRenderer();			
-R.DrawingFeature += R_DrawingFeature;
-R.LoadGeoJson(Json);
-R.FitLayersToPage(640, 480);
-R.SaveImage(@"D:\TEMP\example4.png", 640, 480);
+using(var R = new GeoJsonRenderer())
+{
+    R.DrawingFeature += R_DrawingFeature;
+    R.LoadGeoJson(Json);
+    R.FitLayersToPage(640, 480);
+    R.SaveImage(@"D:\TEMP\example4.png");
+}
 ``` 
 ##### R_DrawingFeature():
 ```C#
@@ -87,12 +95,25 @@ if (e.Feature.Properties.ContainsKey("FLOOR") && e.Feature.Properties["FLOOR"].T
 ```
 
 #### Adding a margin
-The FitLayersToPage method accepts an optional parameter to add a margin (hence, keeping content from going right to the edge of the rendered image) as follows:
+The `FitLayersToPage` method accepts an optional parameter to add a margin (hence, keeping content from going right to the edge of the rendered image) as follows:
 ```C#
-R = new GeoJsonRenderer();
-R.LoadGeoJson(Json);
-R.FitLayersToPage(640, 480, 20);    // 20-pixel margin
-R.SaveImage(@"D:\TEMP\example5.png", 640, 480);
+using(var R = new GeoJsonRenderer())
+{
+    R.LoadGeoJson(Json);
+    R.FitLayersToPage(640, 480, 20);    // 20-pixel margin
+    R.SaveImage(@"D:\TEMP\example5.png");
+}
+```
+
+#### Splitting an image across multiple pages
+The Paginate method can be used instead of `FitLayersToPage`. It accepts a threshold value for scaling. If the scale factor is below this threshold the canvas size is recursively doubled until the scale factor is above the threshold. In this circumstance, `SaveImage(path)` must be given a folder path not a file.
+```C#
+using(var R = new GeoJsonRenderer())
+{
+    R.LoadGeoJson(Json);
+    R.Paginate(200, 100, 0.5, 20);  // 20-pixel margin on each page
+    R.SaveImage(@"D:\TEMP\example6");
+}
 ```
 
 ## Future developments
