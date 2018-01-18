@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Therezin.GeoJsonRenderer
 {
@@ -27,7 +28,9 @@ namespace Therezin.GeoJsonRenderer
         private int pageWidth;
         private int pageHeight;
         private int borderSize;
+        private int pageOverlap;
 
+        private bool MultiPage;
         private bool pageRotated = false;
 
         #endregion
@@ -110,27 +113,29 @@ namespace Therezin.GeoJsonRenderer
         /// <param name="height">Height of the output page in pixels.</param>
         /// <param name="scalingThreshold">If the scaling factor is below this threshold the output will be split. Tests recursively.</param>
         /// <param name="border">Size of the border (if any) in pixels.</param>
-        public void Paginate(int width, int height, double scalingThreshold, int border = 0)
+        /// <param name="overlap">Amount to overlap from one page to the next.</param>
+        public void Paginate(int width, int height, double scalingThreshold, int border = 0, int overlap = 0)
         {
             borderSize = border;
             pageWidth = width;
             pageHeight = height;
+            pageOverlap = overlap;
 
             Envelope Extents = Envelope.FindExtents(Layers);
-            canvasWidth = pageWidth - 2 * borderSize;
-            canvasHeight = pageHeight - 2 * borderSize;
+            canvasWidth = pageWidth - 2 * borderSize - 2 * overlap;
+            canvasHeight = pageHeight - 2 * borderSize - 2 * overlap;
 
-            double ScaleFactor = Math.Max(canvasWidth, canvasHeight) / Math.Max(Extents.Width, Extents.Height);
+            double ScaleFactor = Math.Min(canvasWidth / Extents.Width, canvasHeight / Extents.Height);
             while (ScaleFactor < scalingThreshold)
             {
                 // Rotate 90° and double, like going A4 to A3 etc
                 int TempWidth = canvasWidth;
-                canvasWidth = canvasHeight * 2 - borderSize;
-                canvasHeight = TempWidth - borderSize;
+                canvasWidth = canvasHeight * 2 - borderSize - overlap;
+                canvasHeight = TempWidth - borderSize - overlap;
                 // Every time we rotate aspect ratio, toggle pageRotated - the image hasn't been transformed yet but the canvas has.
                 pageRotated = !pageRotated;
                 MultiPage = true;
-                ScaleFactor = Math.Max(canvasWidth, canvasHeight) / Math.Max(Extents.Width, Extents.Height);
+                ScaleFactor = Math.Min(canvasWidth / Extents.Width, canvasHeight / Extents.Height);
             }
             FitLayersToCanvas();
         }
@@ -187,7 +192,7 @@ namespace Therezin.GeoJsonRenderer
             // If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
             bool Rotate = rotate ?? (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
             if (Rotate == false) { rotateRadians = 0; }
-            double ScaleFactor = Math.Max(width, height) / Math.Max(Extents.Width, Extents.Height);
+            double ScaleFactor = Math.Min(width / Extents.Width, height / Extents.Height);
 
             var OutCollection = new FeatureCollection();
             for (int i = 0; i < features.Features.Count; i++)
@@ -481,20 +486,45 @@ namespace Therezin.GeoJsonRenderer
 
         }
 
+        private Bitmap DrawSegment(int xOffset, int yOffset, int width, int height)
+        {
+            int XSize = width;
+            int YSize = height;
+            int XOrigin = xOffset;
+            int YOrigin = yOffset;
+
+            // Create segment image
+            var Segment = new Bitmap(pageWidth, pageHeight);
+            drawingSurface = Graphics.FromImage(Segment);
+            drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, pageWidth, pageHeight));
+
+            // Segment size. Can't overflow original canvas without erroring so when we reach the end, just grab what's left.
+            if (canvasWidth - xOffset + pageOverlap < width) { XSize = canvasWidth - xOffset + pageOverlap; }
+            if (canvasHeight - yOffset + pageOverlap < height) { YSize = canvasHeight - yOffset + pageOverlap; }
+
+            // Likewise, can't let origin go below 0.
+            if (XOrigin - pageOverlap >= 0) { XOrigin = xOffset - pageOverlap; }
+            if (YOrigin - pageOverlap >= 0) { YOrigin = yOffset - pageOverlap; }
+
+            drawingSurface.DrawImage(canvasBitmap.Clone(new Rectangle(XOrigin, YOrigin, XSize, YSize), canvasBitmap.PixelFormat), borderSize, borderSize);
+            return Segment;
+        }
+
         /// <summary>
         /// Render the <see cref="Layers"/> collection to an image file.
         /// </summary>
-        /// <param name="path">Path to output file. If GeoJSON was split to multiple images using Paginate(),
-        /// this should be a path to the output folder instead and filenames will be automatically generated.</param>
-        public bool SaveImage(string path)
+        /// <param name="folderPath">Path to output folder.</param>
+        /// <param name="filenameFormat">Format string for filenames. Include {0} for segments if paginated.</param>
+        public bool SaveImage(string folderPath, string filenameFormat)
         {
+            // Sanity check. Ensure path is a directory and that it exists.
+            if (!Directory.Exists(folderPath)) { return false; }
+
             RenderLayers();
 
             if (MultiPage == true)
             {
                 // Paginated to multiple pages.
-                // Sanity check. Ensure path is a directory and that it exists.
-                if (!Directory.Exists(path)) { return false; }
 
                 int XOffset = 0;
                 int YOffset = 0;
@@ -508,51 +538,90 @@ namespace Therezin.GeoJsonRenderer
                 {
                     while (XOffset < canvasWidth)
                     {
-                        // Create segment image
-                        var Segment = new Bitmap(pageWidth, pageHeight);
-                        drawingSurface = Graphics.FromImage(Segment);
-                        drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, pageWidth, pageHeight));
+                        Bitmap Segment = DrawSegment(XOffset, YOffset, XSize, YSize);
 
-                        //Segment size. Can't overflow original canvas without erroring so when we reach the end, just grab what's left.
-                        if (canvasWidth - XOffset < XSize) { XSize = canvasWidth - XOffset; }
-                        if (canvasHeight - YOffset < YSize) { YSize = canvasHeight - YOffset; }
-
-                        drawingSurface.DrawImage(canvasBitmap.Clone(new Rectangle(XOffset, YOffset, XSize, YSize), canvasBitmap.PixelFormat), borderSize, borderSize);
-                        Segment.Save(Path.Combine(path, YSegmentID + XSegmentID.ToString() + ".png"));
+                        string Filename = string.Format(filenameFormat, YSegmentID + XSegmentID.ToString());
+                        // Add extension if it is missing.
+                        if (Filename[Filename.Length - 4] != '.') { Filename += ".png"; }
+                        Segment.Save(Path.Combine(folderPath, Filename));
 
                         XOffset += pageWidth - 2 * borderSize;
                         XSegmentID++;
                     }
                     XOffset = 0;
+                    XSegmentID = 0;
                     YOffset += pageHeight - 2 * borderSize;
                     YSegmentID++;
                 }
             }
             else
             {
-                // Single page - might not have a full path if we specified a directory but only paginated to 1 page.
-                if (!Path.HasExtension(path))
-                {
-                    path = Path.Combine(path, DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png");
-                }
+                // Single page
                 var OutputBitmap = new Bitmap(pageWidth, pageHeight);
                 drawingSurface = Graphics.FromImage(OutputBitmap);
                 drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, OutputBitmap.Width, OutputBitmap.Height));
                 drawingSurface.DrawImage(canvasBitmap, borderSize, borderSize);
-                OutputBitmap.Save(path);
+
+                string Filename = string.Format(filenameFormat, "");
+                OutputBitmap.Save(Path.Combine(folderPath, Filename));
             }
             return true;
         }
 
+        public bool SaveImage(string path)
+        {
+            string FolderName = Path.GetDirectoryName(path);
+            string FileName = Path.GetFileName(path);
+            return SaveImage(FolderName, FileName);
+        }
+
         /// <summary>
-        /// Render the <see cref="Layers"/> collection to an image in the form of a MemoryStream.
+        /// Render the <see cref="Layers"/> collection to a single image in the form of a MemoryStream.
         /// </summary>
+        /// <remarks>Paginating the layers may result in a much larger canvas than originally specified. </remarks>
         public MemoryStream ToStream()
         {
             RenderLayers();
             var OutputStream = new MemoryStream();
             canvasBitmap.Save(OutputStream, ImageFormat.Png);
             return OutputStream;
+        }
+
+        /// <summary>
+        /// Render the <see cref="Layers"/> collection to a collection of images.
+        /// </summary>
+        /// <returns></returns>
+        public List<byte[]> ToList()
+        {
+            RenderLayers();
+
+            var Bitmaps = new List<byte[]>();
+            var Converter = new ImageConverter();
+
+            int XOffset = 0;
+            int YOffset = 0;
+            char YSegmentID = 'A';
+            int XSegmentID = 0;
+
+            int XSize = pageWidth - borderSize * 2;
+            int YSize = pageHeight - borderSize * 2;
+
+            while (YOffset < canvasHeight)
+            {
+                while (XOffset < canvasWidth)
+                {
+                    Bitmap Segment = DrawSegment(XOffset, YOffset, XSize, YSize);
+                    Bitmaps.Add((byte[])Converter.ConvertTo(Segment, typeof(byte[])));
+
+                    XOffset += pageWidth - 2 * borderSize;
+                    XSegmentID++;
+                }
+                XOffset = 0;
+                YOffset += pageHeight - 2 * borderSize;
+                YSegmentID++;
+            }
+
+            return Bitmaps;
         }
 
         #endregion
@@ -635,8 +704,8 @@ namespace Therezin.GeoJsonRenderer
         #endregion
 
         #region IDisposable Support
+
         private bool disposedValue = false; // To detect redundant calls
-        private bool MultiPage;
 
         ///<summary>This code added to correctly implement the disposable pattern.</summary> 
         protected virtual void Dispose(bool disposing)
@@ -658,6 +727,7 @@ namespace Therezin.GeoJsonRenderer
             // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
             Dispose(true);
         }
+
         #endregion
 
     }
