@@ -73,6 +73,16 @@ namespace Therezin.GeoJsonRenderer
 			MaxY = maxY;
 		}
 
+        /// <summary>
+        /// An Envelope can be represented by an array of 4 doubles.
+        /// </summary>
+        /// <param name="coords">1-dimensional array of coordinates in the order X-minimum, Y-minimum, X-maximum, Y-maximum.</param>
+        public static implicit operator Envelope(double[] coords)
+        {
+            if (coords.Length != 4) { throw new InvalidCastException("Incorrect number of coordinates to cast as an Envelope"); }
+            return new Envelope(coords[0], coords[1], coords[2], coords[3]);
+        }
+
 		/// <summary>
 		/// Output the envelope's coordinates as a string.
 		/// </summary>

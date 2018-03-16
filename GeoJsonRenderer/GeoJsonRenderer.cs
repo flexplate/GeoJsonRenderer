@@ -140,6 +140,32 @@ namespace Therezin.GeoJsonRenderer
             FitLayersToCanvas();
         }
 
+        /// <summary>
+        /// Crop the layers collection to fit within a set of coordinates.
+        /// </summary>
+        /// <param name="minX">Most westerly coordinate.</param>
+        /// <param name="minY">Most southerly coordinate.</param>
+        /// <param name="maxX">Most Easterly coordinate.</param>
+        /// <param name="maxY">Most northerly coordinate.</param>
+        public void CropFeatures(double minX, double minY, double maxX, double maxY)
+        {
+            CropFeatures(new Envelope(minX, minY, maxX, maxY));
+        }
+
+        /// <summary>
+        /// Crop the layers collection to fit within an envelope.
+        /// </summary>
+        /// <param name="envelope">Envelope to crop to.</param>
+        public void CropFeatures(Envelope envelope)
+        {
+            canvasWidth = Convert.ToInt32(envelope.Width);
+            canvasHeight = Convert.ToInt32(envelope.Height);
+            for (int i = 0; i < Layers.Count; i++)
+            {
+                Layers[i] = TranslateFeatures(Layers[i], envelope);
+            }
+        }
+
         private void FitLayersToCanvas()
         {
             int ContentWidth = canvasWidth;
