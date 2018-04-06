@@ -7,14 +7,25 @@ namespace GeoJsonConsole
     {
         static void Main(string[] args)
         {
-            var reader = new StreamReader("testdata2.json");
-            var Json = reader.ReadToEnd();
+            string[] Filenames = { "testdata3.json" };
+            string[] Jsons = new string[Filenames.Length];
+            for (int i = 0; i < Filenames.Length; i++)
+            {
+                var Reader = new StreamReader(Filenames[i]);
+                string Text = Reader.ReadToEnd();
+                Jsons[i] = Text;
+            }
             using (var R = new GeoJsonRenderer())
             {
-                R.LoadGeoJson(Json);
-                R.Paginate(200, 100, 0.5, 20);
-                R.SaveImage(@"D:\TEMP\example5");
+                R.LoadGeoJson(Jsons);
+                R.DefaultStyle = new DrawingStyle(new System.Drawing.Pen(System.Drawing.Color.Green, 1f), System.Drawing.Brushes.DarkBlue);
+                R.CropFeatures(4000,1000,5000,4000);
+                R.PageHeight = 200;
+                R.PageWidth = 200;
+                //R.FitLayersToPage(300, 300);
+                R.SaveImage(@"D:\TEMP\example7.png");
             }
+
 
         }
 

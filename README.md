@@ -46,7 +46,7 @@ Rendering multiple strings to a file is not much more complex:
 ```C#
 string[] Filenames = { "test-areas.json", "test-frame.json", "test-perimeter.json", "test-text.json" };
 string[] Jsons = new string[Filenames.Length];
-foreach (var Name in Filenames)
+for (int i = 0; i < Filenames.Length; i++)
 {
     var Reader = new StreamReader(Filenames[i]);
     string Text = Reader.ReadToEnd();
@@ -73,24 +73,28 @@ using(var R = new GeoJsonRenderer())
 ```
 #### Selective colour
 GeoJsonRenderer raises an event before drawing each feature. We can handle that event to style features based on their properties. Here we want to highlight our ground floor:
-##### Main():
+
 ```C#
-var reader = new StreamReader("testdata1.json");
-var Json = reader.ReadToEnd();
-using(var R = new GeoJsonRenderer())
+static void main(string[] args)
 {
-    R.DrawingFeature += R_DrawingFeature;
-    R.LoadGeoJson(Json);
-    R.FitLayersToPage(640, 480);
-    R.SaveImage(@"D:\TEMP\example4.png");
+    var reader = new StreamReader("testdata1.json");
+    var Json = reader.ReadToEnd();
+    using(var R = new GeoJsonRenderer())
+    {
+        R.DrawingFeature += R_DrawingFeature;
+        R.LoadGeoJson(Json);
+        R.FitLayersToPage(640, 480);
+        R.SaveImage(@"D:\TEMP\example4.png");
+    }    
 }
-``` 
-##### R_DrawingFeature():
-```C#
-var OptionalStyle = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
-if (e.Feature.Properties.ContainsKey("FLOOR") && e.Feature.Properties["FLOOR"].ToString() == "1")
+
+private void R_DrawingFeature(object sender, DrawingFeatureEventArgs e)
 {
-	e.Style = OptionalStyle;
+    var BigBlueBorder = new DrawingStyle(new Pen(Color.Blue, 5.0f), new SolidBrush(Color.DarkBlue));
+    if (e.Feature.Properties.ContainsKey("FLOOR") && e.Feature.Properties["FLOOR"].ToString() == "1")
+    {
+	    e.Style = BigBlueBorder;
+    }
 }
 ```
 

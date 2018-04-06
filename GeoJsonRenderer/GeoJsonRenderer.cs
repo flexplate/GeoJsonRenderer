@@ -29,7 +29,10 @@ namespace Therezin.GeoJsonRenderer
         private int pageHeight;
         private int borderSize;
         private int pageOverlap;
+        private int originX;
+        private int originY;
 
+        private bool cropped;
         private bool MultiPage;
         private bool pageRotated = false;
 
@@ -46,7 +49,7 @@ namespace Therezin.GeoJsonRenderer
             DefaultStyle = defaultStyle;
             canvasWidth = -1;
             canvasHeight = -1;
-            Layers = new List<FeatureCollection>();
+            Layers = new List<Layer>();
         }
 
         /// <summary>Raised immediately before drawing each feature to facilitate custom styling.</summary>
@@ -57,7 +60,7 @@ namespace Therezin.GeoJsonRenderer
         #region Properties
 
         /// <summary>List of FeatureCollections to render, drawn FIFO.</summary>
-        public List<FeatureCollection> Layers;
+        public List<Layer> Layers;
 
         /// <summary>Default <seealso cref="Therezin.GeoJsonRenderer.DrawingStyle"/> to use when drawing Features.</summary>
         public DrawingStyle DefaultStyle
@@ -76,6 +79,19 @@ namespace Therezin.GeoJsonRenderer
             }
         }
 
+        public int PageHeight
+        {
+            get { return pageHeight; }
+            set { pageHeight = value; }
+        }
+
+        public int PageWidth
+        {
+            get { return pageWidth; }
+            set { pageWidth = value; }
+        }
+
+
 
         #endregion
 
@@ -87,7 +103,7 @@ namespace Therezin.GeoJsonRenderer
         /// <param name="json">GeoJSON string to parse</param>
         public void LoadGeoJson(string json)
         {
-            Layers.Add(JsonConvert.DeserializeObject<FeatureCollection>(json));
+            Layers.Add(JsonConvert.DeserializeObject<Layer>(json, new LayerDeserializer()));
         }
 
         /// <summary>
@@ -98,7 +114,19 @@ namespace Therezin.GeoJsonRenderer
         {
             for (int i = 0; i < jsonArray.Length; i++)
             {
-                Layers.Add(JsonConvert.DeserializeObject<FeatureCollection>(jsonArray[i]));
+                Layers.Add(JsonConvert.DeserializeObject<Layer>(jsonArray[i], new LayerDeserializer()));
+            }
+        }
+
+        /// <summary>
+        /// Parse a collection of GeoJSON strings and load them into the Layers collection.
+        /// </summary>
+        /// <param name="layers">Collection to parse.</param>
+        public void LoadGeoJson(IEnumerable<string> layers)
+        {
+            foreach (var json in layers)
+            {
+                Layers.Add(JsonConvert.DeserializeObject<Layer>(json, new LayerDeserializer()));
             }
         }
 
@@ -125,7 +153,7 @@ namespace Therezin.GeoJsonRenderer
             canvasWidth = pageWidth - 2 * borderSize - 2 * overlap;
             canvasHeight = pageHeight - 2 * borderSize - 2 * overlap;
 
-            double ScaleFactor = Math.Min(canvasWidth / Extents.Width, canvasHeight / Extents.Height);
+            double ScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
             while (ScaleFactor < scalingThreshold)
             {
                 // Rotate 90° and double, like going A4 to A3 etc
@@ -135,7 +163,7 @@ namespace Therezin.GeoJsonRenderer
                 // Every time we rotate aspect ratio, toggle pageRotated - the image hasn't been transformed yet but the canvas has.
                 pageRotated = !pageRotated;
                 MultiPage = true;
-                ScaleFactor = Math.Min(canvasWidth / Extents.Width, canvasHeight / Extents.Height);
+                ScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
             }
             FitLayersToCanvas();
         }
@@ -155,15 +183,20 @@ namespace Therezin.GeoJsonRenderer
         /// <summary>
         /// Crop the layers collection to fit within an envelope.
         /// </summary>
-        /// <param name="envelope">Envelope to crop to.</param>
-        public void CropFeatures(Envelope envelope)
+        /// <param name="viewport">Envelope to crop to.</param>
+        public void CropFeatures(Envelope viewport)
         {
-            canvasWidth = Convert.ToInt32(envelope.Width);
-            canvasHeight = Convert.ToInt32(envelope.Height);
-            for (int i = 0; i < Layers.Count; i++)
-            {
-                Layers[i] = TranslateFeatures(Layers[i], envelope);
-            }
+            Envelope Extents = Envelope.FindExtents(Layers);
+            double ScaleFactor = Math.Min((double)(viewport.Width / Extents.Width), (double)(viewport.Height / Extents.Height));
+            canvasWidth = Convert.ToInt32(Extents.Width * ScaleFactor);
+            canvasHeight = Convert.ToInt32(Extents.Height * ScaleFactor);
+
+            FitLayersToCanvas();
+
+            Envelope TranslatedExtents = Envelope.FindExtents(Layers);
+            originX = Convert.ToInt32(viewport.MinX * ScaleFactor - (Extents.MinX * ScaleFactor - TranslatedExtents.MinX));
+            originY = Convert.ToInt32(viewport.MinY * ScaleFactor - (Extents.MinY * ScaleFactor - TranslatedExtents.MinY));
+            cropped = true;
         }
 
         private void FitLayersToCanvas()
@@ -200,6 +233,16 @@ namespace Therezin.GeoJsonRenderer
             FitLayersToCanvas();
         }
 
+        public void FitCanvasToPage(int width, int height, int border = 0)
+        {
+
+            double OutputAspect = width / (double)height;
+            // If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
+            double ScaleFactor = Math.Min(width / canvasWidth, height / canvasHeight);
+            pageHeight = Convert.ToInt32(pageHeight * ScaleFactor);
+            pageWidth = Convert.ToInt32(pageWidth * ScaleFactor);
+        }
+
         /// <summary>
         /// Rotate and scale all features in a FeatureCollection to fit inside a box.
         /// </summary>
@@ -218,7 +261,7 @@ namespace Therezin.GeoJsonRenderer
             // If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
             bool Rotate = rotate ?? (Extents.AspectRatio > 1) ^ (OutputAspect > 1);
             if (Rotate == false) { rotateRadians = 0; }
-            double ScaleFactor = Math.Min(width / Extents.Width, height / Extents.Height);
+            double ScaleFactor = Math.Min(width / (double)Extents.Width, height / (double)Extents.Height);
 
             var OutCollection = new FeatureCollection();
             for (int i = 0; i < features.Features.Count; i++)
@@ -442,7 +485,7 @@ namespace Therezin.GeoJsonRenderer
         /// <returns></returns>
         private IPosition TranslatePosition(IPosition coordinates, Envelope envelope)
         {
-            return new Position(coordinates.Longitude + (0 - envelope.MinX), coordinates.Latitude + (0 - envelope.MinY));
+            return new Position(coordinates.Longitude + (0 - (double)envelope.MinX), coordinates.Latitude + (0 - (double)envelope.MinY));
         }
 
         #endregion
@@ -506,7 +549,7 @@ namespace Therezin.GeoJsonRenderer
             {
                 foreach (var Item in Layer.Features)
                 {
-                    DrawFeature(Item);
+                    DrawFeature(Item, Layer.Properties);
                 }
             }
 
@@ -580,6 +623,13 @@ namespace Therezin.GeoJsonRenderer
                     YSegmentID++;
                 }
             }
+            else if (cropped == true)
+            {
+                // Cropped down from initial map
+                Bitmap Segment = DrawSegment(originX, originY, PageWidth, pageHeight);
+                string Filename = string.Format(filenameFormat, "");
+                Segment.Save(Path.Combine(folderPath, Filename));
+            }
             else
             {
                 // Single page
@@ -594,6 +644,10 @@ namespace Therezin.GeoJsonRenderer
             return true;
         }
 
+        /// <summary>
+        /// Render the <see cref="Layers"/> collection to an image file.
+        /// </summary>
+        /// <param name="path">Path to save output file.</param>
         public bool SaveImage(string path)
         {
             string FolderName = Path.GetDirectoryName(path);
@@ -657,10 +711,11 @@ namespace Therezin.GeoJsonRenderer
         /// <summary>
         /// Take a feature and draw its geometry. This raises an event so the user can style the feature how they want.
         /// </summary>
-        /// <param name="feature"></param>
-        private void DrawFeature(Feature feature)
+        /// <param name="feature">Feature to draw.</param>
+        /// <param name="layerProperties">Extended properties of layer.</param>
+        private void DrawFeature(Feature feature, Dictionary<string, object> layerProperties)
         {
-            var FeatureArguments = new DrawingFeatureEventArgs(feature, DefaultStyle);
+            var FeatureArguments = new DrawingFeatureEventArgs(feature, DefaultStyle, layerProperties);
             DrawingFeature?.Invoke(this, FeatureArguments);
             DrawGeometry(feature.Geometry, FeatureArguments.Style);
         }

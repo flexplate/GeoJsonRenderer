@@ -15,27 +15,27 @@ namespace Therezin.GeoJsonRenderer
 		/// <summary>
 		/// Minimum value of the bounding box's X axis. (i.e., West-most extent)
 		/// </summary>
-		public double MinX { get; set; }
+		public double? MinX { get; set; }
 
 		/// <summary>
 		/// Minimum value of the bounding box's Y axis.
 		/// </summary>
-		public double MinY { get; set; }
+		public double? MinY { get; set; }
 
 		/// <summary>
 		/// Maximum value of the bounding box's X axis.
 		/// </summary>
-		public double MaxX { get; set; }
+		public double? MaxX { get; set; }
 
 		/// <summary>
 		/// Maximum value of the bounding box's Y axis.
 		/// </summary>
-		public double MaxY { get; set; }
+		public double? MaxY { get; set; }
 
 		/// <summary>
 		/// Width of the envelope (Longitude, in arbitrary units).
 		/// </summary>
-		public double Width
+		public double? Width
 		{
 			get { return MaxX - MinX; }
 		}
@@ -44,7 +44,7 @@ namespace Therezin.GeoJsonRenderer
 		/// Height of the envelope (Latitude, in arbitrary units).
 		/// </summary>
 		/// <remarks>Note: not the height in 3-dimensional space. Envelope is a purely 2-dimensional construct.</remarks>
-		public double Height
+		public double? Height
 		{
 			get { return MaxY - MinY; }
 		}
@@ -52,7 +52,7 @@ namespace Therezin.GeoJsonRenderer
 		/// <summary>
 		/// The envelope's aspect ratio.
 		/// </summary>
-		public double AspectRatio
+		public double? AspectRatio
 		{
 			get { return Width / Height; }
 		}
@@ -60,7 +60,7 @@ namespace Therezin.GeoJsonRenderer
 		/// <summary>
 		/// Instantiate an empty envelope (Coordinates are [0,0],[0,0]).
 		/// </summary>
-		public Envelope() { }
+		public Envelope() {}
 
 		/// <summary>
 		/// Instantiate an envelope with the specified minima and maxima.
@@ -103,13 +103,28 @@ namespace Therezin.GeoJsonRenderer
 			{
 				var CollectionExtents = FindExtents(Collection);
 				// Confusing syntax: Uses LINQ to find smallest, excluding 0. Not actually an array of doubles.
-				Extents.MinX = new double[] { Extents.MinX, CollectionExtents.MinX }.Where(v => v != 0).DefaultIfEmpty().Min();
-				Extents.MinY = new double[] { Extents.MinY, CollectionExtents.MinY }.Where(v => v != 0).DefaultIfEmpty().Min();
-				Extents.MaxX = new double[] { Extents.MaxX, CollectionExtents.MaxX }.Where(v => v != 0).DefaultIfEmpty().Max();
-				Extents.MaxY = new double[] { Extents.MaxY, CollectionExtents.MaxY }.Where(v => v != 0).DefaultIfEmpty().Max();
+				Extents.MinX = new double?[] { Extents.MinX, CollectionExtents.MinX }.DefaultIfEmpty().Min();
+				Extents.MinY = new double?[] { Extents.MinY, CollectionExtents.MinY }.DefaultIfEmpty().Min();
+				Extents.MaxX = new double?[] { Extents.MaxX, CollectionExtents.MaxX }.DefaultIfEmpty().Max();
+				Extents.MaxY = new double?[] { Extents.MaxY, CollectionExtents.MaxY }.DefaultIfEmpty().Max();
 			}
 			return Extents;
 		}
+
+        /// <summary>
+        /// Find the smallest bounding box that can contain all Layers in a given list.
+        /// </summary>
+        /// <param name="layers">The Layers whose dimensions we're returning.</param>
+        /// <returns>An Envelope that can contain all Features in the provided FeatureCollections.</returns>
+        public static Envelope FindExtents(List<Layer> layers)
+        {
+            var FeatureCollections = new List<FeatureCollection>(layers.Count);
+            foreach (var Layer in layers)
+            {
+                FeatureCollections.Add(Layer);
+            }
+            return FindExtents(FeatureCollections);
+        }
 
 		/// <summary>
 		/// Find the smallest bounding box that can contain all Features in a given FeatureCollection, optionally extending an existing Envelope.
@@ -234,15 +249,12 @@ namespace Therezin.GeoJsonRenderer
 		/// <returns>An envelope that contains the <paramref name="position"/> parameter. If <paramref name="extents"/> is populated, that envelope will be extended to contain position.</returns>
 		private static Envelope FindExtents(IPosition position, Envelope extents = null)
 		{
-			var Extents = new Envelope();
-			if (extents != null)
-			{
-				Extents = extents;
-			}
-			Extents.MinX = new double[] { Extents.MinX, position.Longitude }.Where(v => v != 0).DefaultIfEmpty().Min();
-			Extents.MinY = new double[] { Extents.MinY, position.Latitude }.Where(v => v != 0).DefaultIfEmpty().Min();
-			Extents.MaxX = new double[] { Extents.MaxX, position.Longitude }.Where(v => v != 0).DefaultIfEmpty().Max();
-			Extents.MaxY = new double[] { Extents.MaxY, position.Latitude }.Where(v => v != 0).DefaultIfEmpty().Max();
+			var Extents = extents ?? new Envelope();
+			
+			Extents.MinX = new double?[] { Extents.MinX, position.Longitude }.DefaultIfEmpty().Min();
+			Extents.MinY = new double?[] { Extents.MinY, position.Latitude }.DefaultIfEmpty().Min();
+			Extents.MaxX = new double?[] { Extents.MaxX, position.Longitude }.DefaultIfEmpty().Max();
+			Extents.MaxY = new double?[] { Extents.MaxY, position.Latitude }.DefaultIfEmpty().Max();
 			return Extents;
 		}
 	}

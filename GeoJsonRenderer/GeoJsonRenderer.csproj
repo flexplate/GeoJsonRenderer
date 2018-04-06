@@ -55,7 +55,9 @@
     <Compile Include="DrawingFeatureEventArgs.cs" />
     <Compile Include="DrawingStyle.cs" />
     <Compile Include="Envelope.cs" />
+    <Compile Include="Layer.cs" />
     <Compile Include="GeoJsonRenderer.cs" />
+    <Compile Include="LayerDeserializer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
