@@ -36,5 +36,10 @@ namespace Therezin.GeoJsonRenderer
         /// Foreign members of Layer
         /// </summary>
         public Dictionary<string, object> LayerProperties { get; set; }
+
+        /// <summary>
+        /// Whether drawing this <see cref="Feature"/> should be cancelled.
+        /// </summary>
+        public bool Cancel { get; set; } = false;
     }
 }

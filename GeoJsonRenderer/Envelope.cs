@@ -121,7 +121,7 @@ namespace Therezin.GeoJsonRenderer
             var FeatureCollections = new List<FeatureCollection>(layers.Count);
             foreach (var Layer in layers)
             {
-                FeatureCollections.Add(Layer);
+                FeatureCollections.Add(new FeatureCollection(Layer.Features));
             }
             return FindExtents(FeatureCollections);
         }
