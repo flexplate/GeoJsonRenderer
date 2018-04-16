@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -77,7 +78,7 @@ namespace Therezin.GeoJsonRenderer
                     defaultStyle = new DrawingStyle(new Pen(Color.Green, 2.0f), null);
                 }
             }
-        }        
+        }
 
         #endregion
 
@@ -163,7 +164,7 @@ namespace Therezin.GeoJsonRenderer
         /// <param name="maxY">Most northerly coordinate.</param>
         /// <param name="outputWidth">Width (in pixels) of output image.</param>
         /// <param name="outputHeight">Height (in pixels) of output image.</param>
-        public void CropFeatures(double minX, double minY, double maxX, double maxY ,int outputWidth, int outputHeight)
+        public void CropFeatures(double minX, double minY, double maxX, double maxY, int outputWidth, int outputHeight)
         {
             CropFeatures(new Envelope(minX, minY, maxX, maxY), outputWidth, outputHeight);
         }
@@ -534,6 +535,9 @@ namespace Therezin.GeoJsonRenderer
             // Fill canvas with white.
             drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, canvasBitmap.Width, canvasBitmap.Height));
 
+            // Anti-alias output.
+            drawingSurface.SmoothingMode = SmoothingMode.AntiAlias;
+
             foreach (var Layer in Layers)
             {
                 foreach (var Item in Layer.Features)
@@ -742,14 +746,16 @@ namespace Therezin.GeoJsonRenderer
                     foreach (var Line in ((MultiLineString)geometry).Coordinates) { DrawGeometry(Line, style); }
                     break;
                 case GeoJSONObjectType.Polygon:
+                    var Path = new GraphicsPath();
                     foreach (var PolyLine in ((Polygon)geometry).Coordinates)
                     {
                         drawingSurface.DrawPolygon(style.LinePen, ConvertPositionsToPoints(PolyLine.Coordinates));
-                        if (style.FillBrush != null)
-                        {
-                            drawingSurface.FillPolygon(style.FillBrush, ConvertPositionsToPoints(PolyLine.Coordinates));
-                        }
+                        Path.AddPolygon(ConvertPositionsToPoints(PolyLine.Coordinates));
                     }
+                    drawingSurface.DrawPath(style.LinePen, Path);
+
+                    if (style.FillBrush != null) { drawingSurface.FillPath(style.FillBrush, Path); }
+
                     break;
                 case GeoJSONObjectType.MultiPolygon:
                     foreach (var Polygons in ((MultiPolygon)geometry).Coordinates) { DrawGeometry(Polygons, style); }
