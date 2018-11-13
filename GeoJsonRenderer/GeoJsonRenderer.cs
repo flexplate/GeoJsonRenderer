@@ -19,7 +19,6 @@ namespace Therezin.GeoJsonRenderer
     {
         #region Fields
 
-        private Bitmap canvasBitmap;
         private Graphics drawingSurface;
 
         private DrawingStyle defaultStyle;
@@ -193,7 +192,7 @@ namespace Therezin.GeoJsonRenderer
         public void CropFeatures(Envelope viewport, int outputWidth, int outputHeight)
         {
             Envelope GeometryExtents = Envelope.FindExtents(Layers);
-            double ScaleFactor = Math.Min((double)(viewport.Width / GeometryExtents.Width), (double)(viewport.Height / GeometryExtents.Height));
+            double ScaleFactor = Math.Min((double)(viewport.Width / outputWidth), (double)(viewport.Height / outputHeight));
             canvasWidth = Convert.ToInt32(GeometryExtents.Width * ScaleFactor);
             canvasHeight = Convert.ToInt32(GeometryExtents.Height * ScaleFactor);
 
@@ -275,7 +274,10 @@ namespace Therezin.GeoJsonRenderer
             for (int i = 0; i < features.Features.Count; i++)
             {
                 Feature InFeature = features.Features[i];
-                features.Features[i] = new Feature(RotateAndScaleGeometry(InFeature.Geometry, ScaleFactor, rotateRadians), InFeature.Properties, InFeature.Id != null ? InFeature.Id : null);
+                if (InFeature.Geometry != null)
+                {
+                    features.Features[i] = new Feature(RotateAndScaleGeometry(InFeature.Geometry, ScaleFactor, rotateRadians), InFeature.Properties, InFeature.Id != null ? InFeature.Id : null);
+                }
             }
         }
 
@@ -394,7 +396,10 @@ namespace Therezin.GeoJsonRenderer
             for (int f = 0; f < features.Features.Count; f++)
             {
                 var Feature = features.Features[f];
-                features.Features[f] = new Feature(TranslateGeometry(Feature.Geometry, envelope), Feature.Properties, features.Features[f].Id != null ? features.Features[f].Id : null);
+                if (Feature.Geometry != null)
+                {
+                    features.Features[f] = new Feature(TranslateGeometry(Feature.Geometry, envelope), Feature.Properties, features.Features[f].Id != null ? features.Features[f].Id : null);
+                }
             }
         }
 
@@ -538,17 +543,17 @@ namespace Therezin.GeoJsonRenderer
         /// <summary>
         /// Render our geometry collection to a Bitmap's Graphics object.
         /// </summary>
-        private void RenderLayers()
+        private Bitmap RenderLayers()
         {
-            canvasBitmap = new Bitmap(canvasWidth, canvasHeight, PixelFormat.Format24bppRgb);
-            drawingSurface = Graphics.FromImage(canvasBitmap);
+            var Canvas = new Bitmap(canvasWidth, canvasHeight, PixelFormat.Format24bppRgb);
+            drawingSurface = Graphics.FromImage(Canvas);
 
             // Graphics origin is top-left, so we must flip its coordinate system.
             drawingSurface.TranslateTransform(0, canvasHeight);
             drawingSurface.ScaleTransform(1, -1);
 
             // Fill canvas with white.
-            drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, canvasBitmap.Width, canvasBitmap.Height));
+            drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, Canvas.Width, Canvas.Height));
 
             // Anti-alias output.
             drawingSurface.SmoothingMode = SmoothingMode.AntiAlias;
@@ -560,10 +565,10 @@ namespace Therezin.GeoJsonRenderer
                     DrawFeature(Item, Layer.Properties);
                 }
             }
-
+            return Canvas;
         }
 
-        private Bitmap DrawSegment(int xOffset, int yOffset, int width, int height)
+        private Bitmap RenderSegment(int xOffset, int yOffset, int width, int height)
         {
             int XSize = width;
             int YSize = height;
@@ -571,9 +576,10 @@ namespace Therezin.GeoJsonRenderer
             int YOrigin = yOffset;
 
             // Create segment image
-            var Segment = new Bitmap(pageWidth, pageHeight, canvasBitmap.PixelFormat);
-            drawingSurface = Graphics.FromImage(Segment);
+            var Canvas = new Bitmap(pageWidth, pageHeight, PixelFormat.Format24bppRgb);
+            drawingSurface = Graphics.FromImage(Canvas);
             drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, pageWidth, pageHeight));
+            drawingSurface.SmoothingMode = SmoothingMode.AntiAlias;
 
             // GDI origin is top-left, so flip our Y-origin to measure from the roof down.
             YOrigin = canvasHeight - pageHeight - YOrigin;
@@ -588,8 +594,18 @@ namespace Therezin.GeoJsonRenderer
             if (XOrigin < 0) { XOrigin = 0; }
             if (YOrigin < 0) { YOrigin = 0; }
 
-            drawingSurface.DrawImage(canvasBitmap.Clone(new Rectangle(XOrigin, YOrigin, XSize, YSize), canvasBitmap.PixelFormat), borderSize, borderSize);
-            return Segment;
+            var Segment = new Envelope(XOrigin, YOrigin, xOffset + width, YOrigin + height);
+            foreach (var Layer in Layers)
+            {
+                foreach (var Feature in Layer.Features)
+                {
+                    if (Feature.Geometry != null && Clipper.GeometryIntersectsEnvelope(Feature.Geometry, Segment))
+                    {
+                        DrawFeature(Feature, Layer.Properties);
+                    }
+                }
+            }
+            return Canvas;
         }
 
         /// <summary>
@@ -601,8 +617,6 @@ namespace Therezin.GeoJsonRenderer
         {
             // Sanity check. Ensure path is a directory and that it exists.
             if (!Directory.Exists(folderPath)) { return false; }
-
-            RenderLayers();
 
             if (MultiPage == true)
             {
@@ -620,7 +634,7 @@ namespace Therezin.GeoJsonRenderer
                 {
                     while (XOffset < canvasWidth)
                     {
-                        using (Bitmap Segment = DrawSegment(XOffset, YOffset, XSize, YSize))
+                        using (Bitmap Segment = RenderSegment(XOffset, YOffset, XSize, YSize))
                         {
                             string Filename = string.Format(filenameFormat, YSegmentID + XSegmentID.ToString());
                             // Add extension if it is missing.
@@ -640,7 +654,7 @@ namespace Therezin.GeoJsonRenderer
             else if (cropped == true)
             {
                 // Cropped down from initial map
-                using (Bitmap Segment = DrawSegment(originX, originY, pageWidth, pageHeight))
+                using (Bitmap Segment = RenderSegment(originX, originY, pageWidth, pageHeight))
                 {
                     string Filename = string.Format(filenameFormat, "");
                     Segment.Save(Path.Combine(folderPath, Filename));
@@ -649,11 +663,10 @@ namespace Therezin.GeoJsonRenderer
             else
             {
                 // Single page
-                using (var OutputBitmap = new Bitmap(pageWidth, pageHeight))
+                using (var OutputBitmap = RenderLayers())
                 {
                     drawingSurface = Graphics.FromImage(OutputBitmap);
-                    drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, OutputBitmap.Width, OutputBitmap.Height));
-                    drawingSurface.DrawImage(canvasBitmap, borderSize, borderSize);
+                    drawingSurface.DrawImage(OutputBitmap, borderSize, borderSize);
 
                     string Filename = string.Format(filenameFormat, "");
                     OutputBitmap.Save(Path.Combine(folderPath, Filename));
@@ -679,10 +692,12 @@ namespace Therezin.GeoJsonRenderer
         /// <remarks>Paginating the layers may result in a much larger canvas than originally specified. </remarks>
         public MemoryStream ToStream()
         {
-            RenderLayers();
-            var OutputStream = new MemoryStream();
-            canvasBitmap.Save(OutputStream, ImageFormat.Png);
-            return OutputStream;
+            using (var Canvas = RenderLayers())
+            {
+                var OutputStream = new MemoryStream();
+                Canvas.Save(OutputStream, ImageFormat.Png);
+                return OutputStream;
+            }
         }
 
         /// <summary>
@@ -691,8 +706,6 @@ namespace Therezin.GeoJsonRenderer
         /// <returns></returns>
         public List<byte[]> ToList()
         {
-            RenderLayers();
-
             var Bitmaps = new List<byte[]>();
             var Converter = new ImageConverter();
 
@@ -708,7 +721,7 @@ namespace Therezin.GeoJsonRenderer
             {
                 while (XOffset < canvasWidth)
                 {
-                    using (Bitmap Segment = DrawSegment(XOffset, YOffset, XSize, YSize))
+                    using (Bitmap Segment = RenderSegment(XOffset, YOffset, XSize, YSize))
                     {
                         Bitmaps.Add((byte[])Converter.ConvertTo(Segment, typeof(byte[])));
                     }
@@ -821,7 +834,6 @@ namespace Therezin.GeoJsonRenderer
                 if (disposing)
                 {
                     drawingSurface.Dispose();
-                    canvasBitmap.Dispose();
                 }
                 disposedValue = true;
             }

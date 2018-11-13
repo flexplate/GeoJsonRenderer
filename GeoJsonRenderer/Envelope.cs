@@ -178,65 +178,68 @@ namespace Therezin.GeoJsonRenderer
 
 			foreach (GeoJSONObject Item in geoJsonObjects)
 			{
-				if (Item.BoundingBoxes != null)
-				{
-					if (Item.BoundingBoxes.Length == 4)    // -X, -Y, +X, +Y
-					{
-						if (Item.BoundingBoxes[0] < Extents.MinX) { Extents.MinX = Item.BoundingBoxes[0]; }
-						if (Item.BoundingBoxes[1] < Extents.MinY) { Extents.MinY = Item.BoundingBoxes[1]; }
-						if (Item.BoundingBoxes[2] > Extents.MaxX) { Extents.MaxX = Item.BoundingBoxes[2]; }
-						if (Item.BoundingBoxes[3] > Extents.MaxY) { Extents.MaxY = Item.BoundingBoxes[3]; }
-					}
-					else if (Item.BoundingBoxes.Length == 6) // -X, -Y, -Z, +X, +Y, +Z
-					{
-						if (Item.BoundingBoxes[0] < Extents.MinX) { Extents.MinX = Item.BoundingBoxes[0]; }
-						if (Item.BoundingBoxes[1] < Extents.MinY) { Extents.MinY = Item.BoundingBoxes[1]; }
-						if (Item.BoundingBoxes[3] > Extents.MaxX) { Extents.MaxX = Item.BoundingBoxes[3]; }
-						if (Item.BoundingBoxes[3] > Extents.MaxY) { Extents.MaxY = Item.BoundingBoxes[4]; }
-					}
-				}
-				else
-				{
-					switch (Item.Type)
-					{
-						case GeoJSONObjectType.Point:
-							Extents = FindExtents(((Point)Item).Coordinates, Extents);
-							break;
-						case GeoJSONObjectType.MultiPoint:
-							foreach (var Point in ((MultiPoint)Item).Coordinates) { Extents = FindExtents(Point.Coordinates, Extents); }
-							break;
-						case GeoJSONObjectType.LineString:
-							foreach (var Position in ((LineString)Item).Coordinates) { Extents = FindExtents(Position, Extents); }
+                if (Item != null)
+                {
+                    if (Item.BoundingBoxes != null)
+                    {
+                        if (Item.BoundingBoxes.Length == 4)    // -X, -Y, +X, +Y
+                        {
+                            if (Item.BoundingBoxes[0] < Extents.MinX) { Extents.MinX = Item.BoundingBoxes[0]; }
+                            if (Item.BoundingBoxes[1] < Extents.MinY) { Extents.MinY = Item.BoundingBoxes[1]; }
+                            if (Item.BoundingBoxes[2] > Extents.MaxX) { Extents.MaxX = Item.BoundingBoxes[2]; }
+                            if (Item.BoundingBoxes[3] > Extents.MaxY) { Extents.MaxY = Item.BoundingBoxes[3]; }
+                        }
+                        else if (Item.BoundingBoxes.Length == 6) // -X, -Y, -Z, +X, +Y, +Z
+                        {
+                            if (Item.BoundingBoxes[0] < Extents.MinX) { Extents.MinX = Item.BoundingBoxes[0]; }
+                            if (Item.BoundingBoxes[1] < Extents.MinY) { Extents.MinY = Item.BoundingBoxes[1]; }
+                            if (Item.BoundingBoxes[3] > Extents.MaxX) { Extents.MaxX = Item.BoundingBoxes[3]; }
+                            if (Item.BoundingBoxes[3] > Extents.MaxY) { Extents.MaxY = Item.BoundingBoxes[4]; }
+                        }
+                    }
+                    else
+                    {
+                        switch (Item.Type)
+                        {
+                            case GeoJSONObjectType.Point:
+                                Extents = FindExtents(((Point)Item).Coordinates, Extents);
+                                break;
+                            case GeoJSONObjectType.MultiPoint:
+                                foreach (var Point in ((MultiPoint)Item).Coordinates) { Extents = FindExtents(Point.Coordinates, Extents); }
+                                break;
+                            case GeoJSONObjectType.LineString:
+                                foreach (var Position in ((LineString)Item).Coordinates) { Extents = FindExtents(Position, Extents); }
 
-							break;
-						case GeoJSONObjectType.MultiLineString:
-							foreach (var Line in ((MultiLineString)Item).Coordinates)
-							{
-								foreach (var Position in Line.Coordinates) { Extents = FindExtents(Position, Extents); }
-							}
-							break;
-						case GeoJSONObjectType.Polygon:
-							foreach (var Line in ((Polygon)Item).Coordinates)
-							{
-								foreach (var Position in Line.Coordinates) { Extents = FindExtents(Position, Extents); }
-							}
-							break;
-						case GeoJSONObjectType.MultiPolygon:
-							foreach (var Poly in ((MultiPolygon)Item).Coordinates)
-							{
-								foreach (var Line in Poly.Coordinates)
-								{
-									foreach (var Position in Line.Coordinates) { Extents = FindExtents(Position, Extents); }
-								}
-							}
-							break;
-						case GeoJSONObjectType.GeometryCollection:
-							Extents = FindExtents(((GeometryCollection)Item).Geometries, Extents);
-							break;
-						default:
-							break;
-					}
-				}
+                                break;
+                            case GeoJSONObjectType.MultiLineString:
+                                foreach (var Line in ((MultiLineString)Item).Coordinates)
+                                {
+                                    foreach (var Position in Line.Coordinates) { Extents = FindExtents(Position, Extents); }
+                                }
+                                break;
+                            case GeoJSONObjectType.Polygon:
+                                foreach (var Line in ((Polygon)Item).Coordinates)
+                                {
+                                    foreach (var Position in Line.Coordinates) { Extents = FindExtents(Position, Extents); }
+                                }
+                                break;
+                            case GeoJSONObjectType.MultiPolygon:
+                                foreach (var Poly in ((MultiPolygon)Item).Coordinates)
+                                {
+                                    foreach (var Line in Poly.Coordinates)
+                                    {
+                                        foreach (var Position in Line.Coordinates) { Extents = FindExtents(Position, Extents); }
+                                    }
+                                }
+                                break;
+                            case GeoJSONObjectType.GeometryCollection:
+                                Extents = FindExtents(((GeometryCollection)Item).Geometries, Extents);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
 			}
 			return Extents;
 		}

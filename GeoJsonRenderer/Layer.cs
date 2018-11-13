@@ -64,6 +64,7 @@ namespace Therezin.GeoJsonRenderer
         /// </summary>
         public object Clone()
         {
+            // Cheapest way to do this seems tobe to serialize and deserialize it.
             var DeserializeSettings = new JsonSerializerSettings { ObjectCreationHandling = ObjectCreationHandling.Replace };
             return JsonConvert.DeserializeObject<Layer>(JsonConvert.SerializeObject(this), DeserializeSettings);
         }
