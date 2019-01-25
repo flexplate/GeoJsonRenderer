@@ -8,6 +8,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Therezin.GeoJsonRenderer
@@ -142,6 +143,7 @@ namespace Therezin.GeoJsonRenderer
 
             double ScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
 
+            // Keep zooming until we get a ScaleFactor between the thresholds.
             while (ScaleFactor < maximumScalingThreshold)
             {
                 // Calculate new ScaleFactor in advance
@@ -211,18 +213,19 @@ namespace Therezin.GeoJsonRenderer
         {
             int ContentWidth = canvasWidth;
             int ContentHeight = canvasHeight;
-
             Envelope Extents = Envelope.FindExtents(Layers);
             for (int i = 0; i < Layers.Count; i++)
             {
                 RotateAndScaleLayer(Layers[i], ContentWidth, ContentHeight, extents: Extents);
             }
             Extents = Envelope.FindExtents(Layers);
+            Extents.Offset(-borderSize, -borderSize);
             for (int i = 0; i < Layers.Count; i++)
             {
                 TranslateLayer(Layers[i], Extents);
             }
 
+            Extents = Envelope.FindExtents(Layers);
         }
 
         /// <summary>
@@ -241,15 +244,6 @@ namespace Therezin.GeoJsonRenderer
             FitLayersToCanvas();
         }
 
-        public void FitCanvasToPage(int width, int height, int border = 0)
-        {
-
-            double OutputAspect = width / (double)height;
-            // If we're not sure whether to rotate, set rotate flag if one aspect > 1, but not both.
-            double ScaleFactor = Math.Min(width / canvasWidth, height / canvasHeight);
-            pageHeight = Convert.ToInt32(pageHeight * ScaleFactor);
-            pageWidth = Convert.ToInt32(pageWidth * ScaleFactor);
-        }
 
         /// <summary>
         /// Rotate and scale all features in a FeatureCollection to fit inside a box.
@@ -384,6 +378,19 @@ namespace Therezin.GeoJsonRenderer
             }
         }
         #region Translate
+
+
+        private void TranslateLayers(List<Layer> layerCollection, double dx, double dy)
+        {
+            var Extents = Envelope.FindExtents(layerCollection);
+            Extents.MinX -= dx;
+            Extents.MinY -= dy;
+            foreach (var Layer in layerCollection)
+            {
+                TranslateLayer(Layer, Extents);
+            }
+        }
+
 
         /// <summary>
         /// Iterate through feature collection and rebase its coordinates' origins to the minima of an Envelope.
@@ -545,11 +552,11 @@ namespace Therezin.GeoJsonRenderer
         /// </summary>
         private Bitmap RenderLayers()
         {
-            var Canvas = new Bitmap(canvasWidth, canvasHeight, PixelFormat.Format24bppRgb);
+            var Canvas = new Bitmap(pageWidth, pageHeight, PixelFormat.Format24bppRgb);
             drawingSurface = Graphics.FromImage(Canvas);
-
+            
             // Graphics origin is top-left, so we must flip its coordinate system.
-            drawingSurface.TranslateTransform(0, canvasHeight);
+            drawingSurface.TranslateTransform(0, pageHeight);
             drawingSurface.ScaleTransform(1, -1);
 
             // Fill canvas with white.
@@ -562,7 +569,10 @@ namespace Therezin.GeoJsonRenderer
             {
                 foreach (var Item in Layer.Features)
                 {
-                    DrawFeature(Item, Layer.Properties);
+                    if (Item.Geometry != null)
+                    {
+                        DrawFeature(Item, Layer.Properties);
+                    }
                 }
             }
             return Canvas;
@@ -581,9 +591,6 @@ namespace Therezin.GeoJsonRenderer
             drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, pageWidth, pageHeight));
             drawingSurface.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // GDI origin is top-left, so flip our Y-origin to measure from the roof down.
-            YOrigin = canvasHeight - pageHeight - YOrigin;
-
             // Segment size. Can't overflow original canvas without erroring so when we reach the end, just grab what's left.
             if (canvasWidth - XOrigin + pageOverlap < width) { XSize = canvasWidth - XOrigin + pageOverlap; }
             if (canvasHeight - YOrigin + pageOverlap < height) { YSize = canvasHeight - YOrigin + pageOverlap; }
@@ -594,12 +601,23 @@ namespace Therezin.GeoJsonRenderer
             if (XOrigin < 0) { XOrigin = 0; }
             if (YOrigin < 0) { YOrigin = 0; }
 
-            var Segment = new Envelope(XOrigin, YOrigin, xOffset + width, YOrigin + height);
-            foreach (var Layer in Layers)
+            // Use to exclude features from being drawn if they're off the page.
+            var PageExtents = new Envelope(originX, originY, pageWidth, pageHeight);
+            if (pageRotated) { PageExtents = new Envelope(originX, originY, pageHeight, pageWidth); }
+
+            var LayersExtents = Envelope.FindExtents(Layers);
+
+            // Duplicate layer collection and translate them to show the correct viewport.
+            var RenderLayers = new List<Layer>(Layers.Select(l => (Layer)l.Clone()));
+            TranslateLayers(RenderLayers, 0 - XOrigin, 0 - YOrigin);
+
+            var RenderLayersExtents = Envelope.FindExtents(RenderLayers);
+
+            foreach (var Layer in RenderLayers)
             {
                 foreach (var Feature in Layer.Features)
                 {
-                    if (Feature.Geometry != null && Clipper.GeometryIntersectsEnvelope(Feature.Geometry, Segment))
+                    if (Feature.Geometry != null && Clipper.GeometryIntersectsEnvelope(Feature.Geometry, PageExtents))
                     {
                         DrawFeature(Feature, Layer.Properties);
                     }
@@ -607,6 +625,7 @@ namespace Therezin.GeoJsonRenderer
             }
             return Canvas;
         }
+
 
         /// <summary>
         /// Render the <see cref="Layers"/> collection to an image file.
@@ -750,7 +769,7 @@ namespace Therezin.GeoJsonRenderer
         {
             var FeatureArguments = new DrawingFeatureEventArgs(feature, DefaultStyle, layerProperties);
             DrawingFeature?.Invoke(this, FeatureArguments);
-            if (FeatureArguments.Cancel == false)
+            if (FeatureArguments.Cancel == false && feature.Geometry != null)
             {
                 DrawGeometry(feature.Geometry, FeatureArguments.Style);
             }
