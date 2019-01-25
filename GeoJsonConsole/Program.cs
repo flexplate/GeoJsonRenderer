@@ -1,6 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using Therezin.GeoJsonRenderer;
 
 namespace GeoJsonConsole
@@ -9,7 +7,7 @@ namespace GeoJsonConsole
     {
         static void Main(string[] args)
         {
-            string[] Filenames = { @"D:\TEMP\pid-71-1.json", @"D:\TEMP\pid-71-2.json", @"D:\TEMP\pid-71-3.json", @"D:\TEMP\pid-71-4.json" };
+            string[] Filenames = { @"D:\TEMP\test.json" };
             string[] Jsons = new string[Filenames.Length];
             for (int i = 0; i < Filenames.Length; i++)
             {
@@ -17,36 +15,23 @@ namespace GeoJsonConsole
                 string Text = Reader.ReadToEnd();
                 Jsons[i] = Text;
             }
-                        
+
             using (var R = new GeoJsonRenderer())
             {
                 R.LoadGeoJson(Jsons);
-
-                for (int i = 0; i < R.Layers.Count; i++)
-                {
-                    R.Layers[i] = new GeoJSON.Net.Feature.FeatureCollection(R.Layers[i].Features.Where(FilterFeatures()).ToList());
-                }
-
-                //R.Paginate(4250, 3000, 0.047, 0.015, 0, 50);
-                //R.SaveImage(@"D:\TEMP\GeoJSON Renderer Output Test\" + DateTime.Now.ToFileTimeUtc().ToString() + "-{0}.png");
-
-                R.FitLayersToPage(4250, 3000, 50);
-                R.SaveImage(@"D:\TEMP\GeoJSON Renderer Output Test\" + DateTime.Now.ToFileTimeUtc().ToString() + ".png");
+                R.CropFeatures(new Envelope(40, 270, 180, 470), 140, 200);
+                R.SaveImage(@"D:\TEMP\test1.png");
             }
-        }
 
 
-        private static Func<GeoJSON.Net.Feature.Feature, bool> FilterFeatures()
-        {
-            return (
-                f => (
-                    f.Properties.ContainsKey("FLOOR_LOCATION") &&
-                    f.Properties["FLOOR_LOCATION"].ToString() == "G"
-                ) || (
-                    f.Properties.ContainsKey("FLOOR") &&
-                    f.Properties["FLOOR"].ToString() == "G"
-                )
-            );
+            using (var R = new GeoJsonRenderer())
+            {
+                R.LoadGeoJson(Jsons);
+                R.FitLayersToPage(800, 600);
+                R.SaveImage(@"D:\TEMP\test2.png");
+            }
+
+
         }
 
     }
