@@ -102,8 +102,8 @@ namespace Therezin.GeoJsonRenderer
 			foreach (var Collection in collections)
 			{
 				var CollectionExtents = FindExtents(Collection);
-				// Confusing syntax: Uses LINQ to find smallest, excluding 0. Not actually an array of doubles.
-				Extents.MinX = new double?[] { Extents.MinX, CollectionExtents.MinX }.DefaultIfEmpty().Min();
+                // Confusing syntax: Uses LINQ to find smallest, excluding 0. Not actually an array of doubles.
+                Extents.MinX = new double?[] { Extents.MinX, CollectionExtents.MinX }.DefaultIfEmpty().Min();
 				Extents.MinY = new double?[] { Extents.MinY, CollectionExtents.MinY }.DefaultIfEmpty().Min();
 				Extents.MaxX = new double?[] { Extents.MaxX, CollectionExtents.MaxX }.DefaultIfEmpty().Max();
 				Extents.MaxY = new double?[] { Extents.MaxY, CollectionExtents.MaxY }.DefaultIfEmpty().Max();
@@ -153,7 +153,7 @@ namespace Therezin.GeoJsonRenderer
 		/// </summary>
 		/// <param name="x">Distance to offset in x-direction</param>
 		/// <param name="y">Distance to offset in y-direction</param>
-		internal void Offset(int x, int y)
+		public void Offset(int x, int y)
 		{
 			MinX += x;
 			MaxX += x;
@@ -253,7 +253,6 @@ namespace Therezin.GeoJsonRenderer
 		private static Envelope FindExtents(IPosition position, Envelope extents = null)
 		{
 			var Extents = extents ?? new Envelope();
-			
 			Extents.MinX = new double?[] { Extents.MinX, position.Longitude }.DefaultIfEmpty().Min();
 			Extents.MinY = new double?[] { Extents.MinY, position.Latitude }.DefaultIfEmpty().Min();
 			Extents.MaxX = new double?[] { Extents.MaxX, position.Longitude }.DefaultIfEmpty().Max();

@@ -26,15 +26,18 @@ namespace Therezin.GeoJsonRenderer
 
         private int canvasWidth;
         private int canvasHeight;
+
         private int pageWidth;
         private int pageHeight;
+
         private int borderSize;
         private int pageOverlap;
+
         private int originX;
         private int originY;
 
         private bool cropped;
-        private bool MultiPage;
+        private bool multiPage;
         private bool pageRotated = false;
 
         #endregion
@@ -140,7 +143,8 @@ namespace Therezin.GeoJsonRenderer
             Envelope Extents = Envelope.FindExtents(Layers);
             canvasWidth = pageWidth - 2 * borderSize - 2 * overlap;
             canvasHeight = pageHeight - 2 * borderSize - 2 * overlap;
-
+            multiPage = true;
+            
             double ScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
 
             // Keep zooming until we get a ScaleFactor between the thresholds.
@@ -148,8 +152,8 @@ namespace Therezin.GeoJsonRenderer
             {
                 // Calculate new ScaleFactor in advance
                 int OriginalWidth = canvasWidth;
-                int TempWidth = canvasHeight * 2 - borderSize - overlap;
-                int TempHeight = TempWidth - borderSize - overlap;
+                int TempWidth = canvasHeight * 2 - borderSize * 2 - overlap * 2;
+                int TempHeight = TempWidth - borderSize * 2 - overlap * 2;
                 double NewScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
 
                 if (NewScaleFactor > minimumScalingThreshold)
@@ -159,7 +163,6 @@ namespace Therezin.GeoJsonRenderer
                     canvasHeight = TempHeight;
                     // Every time we rotate aspect ratio, toggle pageRotated - the image hasn't been transformed yet but the canvas has.
                     pageRotated = !pageRotated;
-                    MultiPage = true;
                     ScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
                 }
                 else
@@ -168,7 +171,7 @@ namespace Therezin.GeoJsonRenderer
                     break;
                 }
             }
-            FitLayersToCanvas();
+            FitLayersToEnvelope(new Envelope(0, 0, canvasWidth, canvasHeight));
         }
 
         /// <summary>
@@ -193,39 +196,46 @@ namespace Therezin.GeoJsonRenderer
         /// <param name="outputHeight">Height (in pixels) of output image.</param>
         public void CropFeatures(Envelope viewport, int outputWidth, int outputHeight)
         {
-            Envelope GeometryExtents = Envelope.FindExtents(Layers);
-            double ScaleFactor = Math.Min((double)(viewport.Width / outputWidth), (double)(viewport.Height / outputHeight));
-            canvasWidth = Convert.ToInt32(GeometryExtents.Width * ScaleFactor);
-            canvasHeight = Convert.ToInt32(GeometryExtents.Height * ScaleFactor);
-
+            // Fit viewport to page (ensure largest dimension fits, don't rotate).
             pageWidth = outputWidth;
             pageHeight = outputHeight;
+            double ScaleFactor;
+            if (viewport.Height > viewport.Width)
+            {
+                ScaleFactor = pageHeight / (double)viewport.Height;
+            }
+            else
+            {
+                ScaleFactor = pageWidth / (double)viewport.Width;
+            }
 
-            FitLayersToCanvas();
+            // resize canvas to appropriate size to fit viewport.
+            Envelope OriginalExtents = Envelope.FindExtents(Layers);
+            canvasWidth = Convert.ToInt32(OriginalExtents.Width * ScaleFactor);
+            canvasHeight = Convert.ToInt32(OriginalExtents.Height * ScaleFactor);
+            FitLayersToEnvelope(new Envelope(0, 0, canvasWidth, canvasHeight), rotate: false);
 
+            // change origin to scaled origin of viewport.
             Envelope TranslatedExtents = Envelope.FindExtents(Layers);
-            originX = Convert.ToInt32(viewport.MinX * ScaleFactor - (GeometryExtents.MinX * ScaleFactor - TranslatedExtents.MinX));
-            originY = Convert.ToInt32(viewport.MinY * ScaleFactor - (GeometryExtents.MinY * ScaleFactor - TranslatedExtents.MinY));
+            originX = Convert.ToInt32((viewport.MinX - -(TranslatedExtents.MinX / ScaleFactor - OriginalExtents.MinX)) * ScaleFactor);
+            originY = Convert.ToInt32((viewport.MinY - -(TranslatedExtents.MinY / ScaleFactor - OriginalExtents.MinY)) * ScaleFactor);
             cropped = true;
         }
 
-        private void FitLayersToCanvas()
+        private void FitLayersToEnvelope(Envelope envelope, bool? rotate = null)
         {
-            int ContentWidth = canvasWidth;
-            int ContentHeight = canvasHeight;
-            Envelope Extents = Envelope.FindExtents(Layers);
+            Envelope LayersExtents = Envelope.FindExtents(Layers);
             for (int i = 0; i < Layers.Count; i++)
             {
-                RotateAndScaleLayer(Layers[i], ContentWidth, ContentHeight, extents: Extents);
+                RotateAndScaleLayer(Layers[i], (int)envelope.Width, (int)envelope.Height, rotate: rotate, extents: LayersExtents);
             }
-            Extents = Envelope.FindExtents(Layers);
-            Extents.Offset(-borderSize, -borderSize);
+            LayersExtents = Envelope.FindExtents(Layers);
+            //LayersExtents.Offset(-borderSize, -borderSize);
             for (int i = 0; i < Layers.Count; i++)
             {
-                TranslateLayer(Layers[i], Extents);
+                TranslateLayer(Layers[i], LayersExtents);
             }
-
-            Extents = Envelope.FindExtents(Layers);
+            LayersExtents = Envelope.FindExtents(Layers);
         }
 
         /// <summary>
@@ -237,11 +247,13 @@ namespace Therezin.GeoJsonRenderer
         public void FitLayersToPage(int width, int height, int border = 0)
         {
             borderSize = border;
-            canvasHeight = height - 2 * borderSize;
-            canvasWidth = width - 2 * borderSize;
-            pageHeight = height;
-            pageWidth = width;
-            FitLayersToCanvas();
+            pageHeight = height - 2 * borderSize;
+            pageWidth = width - 2 * borderSize;
+            canvasHeight = height;
+            canvasWidth = width;
+            FitLayersToEnvelope(new Envelope(0, 0, pageWidth - borderSize * 2, pageHeight - borderSize * 2));
+            multiPage = false;
+            cropped = false;
         }
 
 
@@ -253,7 +265,7 @@ namespace Therezin.GeoJsonRenderer
         /// <param name="height">Height of bounding box.</param>
         /// <param name="rotateRadians">Radians to rotate by. Defaults to 90 degrees.</param>
         /// <param name="rotate">Whether to rotate the features. If this is null, features will be rotated if input and output are different aspects.</param>
-        /// <param name="extents">Extents to use. If null, will use extents of "<paramref name="features"/>" parameter.</param>
+        /// <param name="extents">Extents to base size calculations on. Use to size groups of layers all together. If null, will use extents of "<paramref name="features"/>" parameter.</param>
         /// <returns></returns>
         public void RotateAndScaleLayer(Layer features, int width, int height, double rotateRadians = 4.7124, bool? rotate = null, Envelope extents = null)
         {
@@ -502,7 +514,7 @@ namespace Therezin.GeoJsonRenderer
         /// <returns></returns>
         private IPosition TranslatePosition(IPosition coordinates, Envelope envelope)
         {
-            return new Position(coordinates.Longitude + (0 - (double)envelope.MinX), coordinates.Latitude + (0 - (double)envelope.MinY));
+            return new Position(coordinates.Latitude + (0 - (double)envelope.MinY), coordinates.Longitude + (0 - (double)envelope.MinX));
         }
 
         #endregion
@@ -513,13 +525,13 @@ namespace Therezin.GeoJsonRenderer
         /// Rotate a position around the origin (0,0).
         /// </summary>
         /// <param name="position">IPosition object to rotate.</param>
-        /// <param name="theta">Angle to rotate <paramref name="position"/> by, in radians.</param>
-        /// <returns>New Position with the Latitude and Longitude rotated by <paramref name="theta"/> radians.</returns>
-        public IPosition RotatePositionAroundZero(IPosition position, double theta)
+        /// <param name="angle">Angle to rotate <paramref name="position"/> by, in radians.</param>
+        /// <returns>New Position with the Latitude and Longitude rotated by <paramref name="angle"/> radians.</returns>
+        public IPosition RotatePositionAroundZero(IPosition position, double angle)
         {
-            var NewX = Math.Cos(theta) * position.Latitude - Math.Sin(theta) * position.Longitude;
-            var NewY = Math.Sin(theta) * position.Latitude + Math.Cos(theta) * position.Longitude;
-            return new Position(NewX, NewY, position.Altitude);
+            var NewX = Math.Cos(angle) * position.Longitude - Math.Sin(angle) * position.Latitude;
+            var NewY = Math.Sin(angle) * position.Longitude + Math.Cos(angle) * position.Latitude;
+            return new Position(NewY, NewX, position.Altitude);
         }
 
         #endregion
@@ -552,17 +564,9 @@ namespace Therezin.GeoJsonRenderer
         /// </summary>
         private Bitmap RenderLayers()
         {
-            var Canvas = new Bitmap(pageWidth, pageHeight, PixelFormat.Format24bppRgb);
-            drawingSurface = Graphics.FromImage(Canvas);
-            
-            // Graphics origin is top-left, so we must flip its coordinate system.
-            drawingSurface.TranslateTransform(0, pageHeight);
-            drawingSurface.ScaleTransform(1, -1);
-
-            // Fill canvas with white.
-            drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, Canvas.Width, Canvas.Height));
-
-            // Anti-alias output.
+            var OutputBitmap = new Bitmap(canvasWidth, canvasHeight, PixelFormat.Format24bppRgb);
+            drawingSurface = Graphics.FromImage(OutputBitmap);
+            drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, OutputBitmap.Width, OutputBitmap.Height));
             drawingSurface.SmoothingMode = SmoothingMode.AntiAlias;
 
             foreach (var Layer in Layers)
@@ -575,7 +579,7 @@ namespace Therezin.GeoJsonRenderer
                     }
                 }
             }
-            return Canvas;
+            return OutputBitmap;
         }
 
         private Bitmap RenderSegment(int xOffset, int yOffset, int width, int height)
@@ -586,32 +590,32 @@ namespace Therezin.GeoJsonRenderer
             int YOrigin = yOffset;
 
             // Create segment image
-            var Canvas = new Bitmap(pageWidth, pageHeight, PixelFormat.Format24bppRgb);
-            drawingSurface = Graphics.FromImage(Canvas);
+            var OutputBitmap = new Bitmap(pageWidth, pageHeight, PixelFormat.Format24bppRgb);
+            drawingSurface = Graphics.FromImage(OutputBitmap);
             drawingSurface.FillRectangle(Brushes.White, new Rectangle(0, 0, pageWidth, pageHeight));
             drawingSurface.SmoothingMode = SmoothingMode.AntiAlias;
 
             // Segment size. Can't overflow original canvas without erroring so when we reach the end, just grab what's left.
-            if (canvasWidth - XOrigin + pageOverlap < width) { XSize = canvasWidth - XOrigin + pageOverlap; }
-            if (canvasHeight - YOrigin + pageOverlap < height) { YSize = canvasHeight - YOrigin + pageOverlap; }
+            if (pageWidth - XOrigin + pageOverlap < width) { XSize = pageWidth - XOrigin + pageOverlap; }
+            if (pageHeight - YOrigin + pageOverlap < height) { YSize = pageHeight - YOrigin + pageOverlap; }
 
             // Likewise, can't let origin go below 0.
-            XOrigin -= pageOverlap;
-            YOrigin -= pageOverlap;
-            if (XOrigin < 0) { XOrigin = 0; }
-            if (YOrigin < 0) { YOrigin = 0; }
+            XOrigin = Math.Max(XOrigin - pageOverlap, 0);
+            YOrigin = Math.Max(YOrigin - pageOverlap, 0);
 
             // Use to exclude features from being drawn if they're off the page.
-            var PageExtents = new Envelope(originX, originY, pageWidth, pageHeight);
-            if (pageRotated) { PageExtents = new Envelope(originX, originY, pageHeight, pageWidth); }
-
-            var LayersExtents = Envelope.FindExtents(Layers);
+            var PageExtents = new Envelope(0, 0, pageWidth, pageHeight);
+            if (pageRotated)
+            {
+                PageExtents = new Envelope(originX, originY, pageHeight, pageWidth);
+                int TempOrigin = XOrigin;
+                XOrigin = YOrigin;
+                YOrigin = TempOrigin;
+            }
 
             // Duplicate layer collection and translate them to show the correct viewport.
             var RenderLayers = new List<Layer>(Layers.Select(l => (Layer)l.Clone()));
             TranslateLayers(RenderLayers, 0 - XOrigin, 0 - YOrigin);
-
-            var RenderLayersExtents = Envelope.FindExtents(RenderLayers);
 
             foreach (var Layer in RenderLayers)
             {
@@ -623,7 +627,7 @@ namespace Therezin.GeoJsonRenderer
                     }
                 }
             }
-            return Canvas;
+            return OutputBitmap;
         }
 
 
@@ -637,21 +641,24 @@ namespace Therezin.GeoJsonRenderer
             // Sanity check. Ensure path is a directory and that it exists.
             if (!Directory.Exists(folderPath)) { return false; }
 
-            if (MultiPage == true)
+            if (multiPage == true)
             {
                 // Paginated to multiple pages.
-
-                int XOffset = 0;
-                int YOffset = 0;
+                int XOffset = originX;
+                int YOffset = originY;
                 char YSegmentID = 'A';
                 int XSegmentID = 0;
 
                 int XSize = pageWidth - borderSize * 2;
                 int YSize = pageHeight - borderSize * 2;
 
-                while (YOffset < canvasHeight)
+                var XSegments = ((canvasWidth / pageWidth) + (canvasWidth % pageWidth == 0 ? 0 : 1));
+                var YSegments = ((canvasHeight / pageHeight) + (canvasHeight % pageHeight == 0 ? 0 : 1));
+
+                
+                    for( int y = 1; y <= YSegments; y++)
                 {
-                    while (XOffset < canvasWidth)
+                    for(int x = 1; x <= XSegments; x++)
                     {
                         using (Bitmap Segment = RenderSegment(XOffset, YOffset, XSize, YSize))
                         {
@@ -684,9 +691,6 @@ namespace Therezin.GeoJsonRenderer
                 // Single page
                 using (var OutputBitmap = RenderLayers())
                 {
-                    drawingSurface = Graphics.FromImage(OutputBitmap);
-                    drawingSurface.DrawImage(OutputBitmap, borderSize, borderSize);
-
                     string Filename = string.Format(filenameFormat, "");
                     OutputBitmap.Save(Path.Combine(folderPath, Filename));
                 }
