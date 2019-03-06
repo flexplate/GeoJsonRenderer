@@ -144,7 +144,7 @@ namespace Therezin.GeoJsonRenderer
             canvasWidth = pageWidth - 2 * borderSize - 2 * overlap;
             canvasHeight = pageHeight - 2 * borderSize - 2 * overlap;
             multiPage = true;
-            
+
             double ScaleFactor = Math.Min(canvasWidth / (double)Extents.Width, canvasHeight / (double)Extents.Height);
 
             // Keep zooming until we get a ScaleFactor between the thresholds.
@@ -308,14 +308,14 @@ namespace Therezin.GeoJsonRenderer
                 case GeoJSONObjectType.MultiPoint:
                     {
                         var MultiP = ((MultiPoint)geometry);
-                        var OutMulti = new MultiPoint();
+                        var Points = new List<GeoJSON.Net.Geometry.Point>();
                         for (int j = 0; j < MultiP.Coordinates.Count; j++)
                         {
                             var Position = MultiP.Coordinates[j].Coordinates;
                             if (rotateRadians != 0) { Position = RotatePositionAroundZero(Position, rotateRadians); }
-                            OutMulti.Coordinates.Add(new GeoJSON.Net.Geometry.Point(ScalePosition(Position, scaleFactor)));
+                            Points.Add(new GeoJSON.Net.Geometry.Point(ScalePosition(Position, scaleFactor)));
                         }
-                        return OutMulti;
+                        return new MultiPoint(Points);
                     }
                 case GeoJSONObjectType.LineString:
                     {
@@ -323,9 +323,9 @@ namespace Therezin.GeoJsonRenderer
                         var Positions = new List<IPosition>();
                         for (int j = 0; j < Line.Coordinates.Count; j++)
                         {
-                            var Position = Line.Coordinates[j];
-                            if (rotateRadians != 0) { Position = RotatePositionAroundZero(Position, rotateRadians); }
-                            Positions.Add(ScalePosition(Position, scaleFactor));
+                            var P = Line.Coordinates[j];
+                            if (rotateRadians != 0) { P = RotatePositionAroundZero(P, rotateRadians); }
+                            Positions.Add(ScalePosition(P, scaleFactor));
                         }
                         return new LineString(Positions);
                     }
@@ -337,9 +337,9 @@ namespace Therezin.GeoJsonRenderer
                             var Positions = new List<IPosition>();
                             for (int j = 0; j < Line.Coordinates.Count; j++)
                             {
-                                var Position = Line.Coordinates[j];
-                                if (rotateRadians != 0) { Position = RotatePositionAroundZero(Position, rotateRadians); }
-                                Positions.Add(ScalePosition(Position, scaleFactor));
+                                var P = Line.Coordinates[j];
+                                if (rotateRadians != 0) { P = RotatePositionAroundZero(P, rotateRadians); }
+                                Positions.Add(ScalePosition(P, scaleFactor));
                             }
                             Lines.Add(new LineString(Positions));
                         }
@@ -353,15 +353,16 @@ namespace Therezin.GeoJsonRenderer
                             var Positions = new List<IPosition>();
                             for (int j = 0; j < Line.Coordinates.Count; j++)
                             {
-                                if (rotateRadians != 0) { Line.Coordinates[j] = RotatePositionAroundZero(Line.Coordinates[j], rotateRadians); }
-                                Positions.Add(ScalePosition(Line.Coordinates[j], scaleFactor));
+                                IPosition P = Line.Coordinates[j];
+                                if (rotateRadians != 0) { P = RotatePositionAroundZero(P, rotateRadians); }
+                                Positions.Add(ScalePosition(P, scaleFactor));
                             }
                             Lines.Add(new LineString(Positions));
                         }
                         return new Polygon(Lines);
                     }
                 case GeoJSONObjectType.MultiPolygon:
-                    var Polys = new MultiPolygon();
+                    var Polys = new List<Polygon>();
                     foreach (var Poly in ((MultiPolygon)geometry).Coordinates)
                     {
                         var Lines = new List<LineString>();
@@ -370,14 +371,15 @@ namespace Therezin.GeoJsonRenderer
                             var Positions = new List<IPosition>();
                             for (int j = 0; j < Line.Coordinates.Count; j++)
                             {
-                                if (rotateRadians != 0) { Line.Coordinates[j] = RotatePositionAroundZero(Line.Coordinates[j], rotateRadians); }
-                                Positions.Add(ScalePosition(Line.Coordinates[j], scaleFactor));
+                                IPosition P = Line.Coordinates[j];
+                                if (rotateRadians != 0) { P = RotatePositionAroundZero(P, rotateRadians); }
+                                Positions.Add(ScalePosition(P, scaleFactor));
                             }
                             Lines.Add(new LineString(Positions));
                         }
-                        Polys.Coordinates.Add(new Polygon(Lines));
+                        Polys.Add(new Polygon(Lines));
                     }
-                    return Polys;
+                    return new MultiPolygon(Polys);
                 case GeoJSONObjectType.GeometryCollection:
                     var Geometries = new List<IGeometryObject>();
                     foreach (var Geometry in ((GeometryCollection)geometry).Geometries)
@@ -438,28 +440,34 @@ namespace Therezin.GeoJsonRenderer
                 case GeoJSONObjectType.MultiPoint:
                     {
                         var MultiP = ((MultiPoint)geometry);
+                        var Points = new List<GeoJSON.Net.Geometry.Point>();
                         for (int i = 0; i < MultiP.Coordinates.Count; i++)
                         {
-                            MultiP.Coordinates[i] = new GeoJSON.Net.Geometry.Point(TranslatePosition(MultiP.Coordinates[i].Coordinates, envelope));
+                            Points.Add(new GeoJSON.Net.Geometry.Point(TranslatePosition(MultiP.Coordinates[i].Coordinates, envelope)));
                         }
-                        return MultiP;
+                        return new MultiPoint(Points);
                     }
                 case GeoJSONObjectType.LineString:
                     {
                         var Line = ((LineString)geometry);
-                        for (int i = 0; i < Line.Coordinates.Count; i++) { Line.Coordinates[i] = TranslatePosition(Line.Coordinates[i], envelope); }
-                        return Line;
+                        var Positions = new List<IPosition>();
+                        for (int i = 0; i < Line.Coordinates.Count; i++)
+                        {
+                            Positions.Add(TranslatePosition(Line.Coordinates[i], envelope));
+                        }
+                        return new LineString(Positions);
                     }
                 case GeoJSONObjectType.MultiLineString:
                     {
                         var Lines = new List<LineString>();
                         foreach (var Line in ((MultiLineString)geometry).Coordinates)
                         {
+                            var Positions = new List<IPosition>();
                             for (int i = 0; i < Line.Coordinates.Count; i++)
                             {
-                                Line.Coordinates[i] = TranslatePosition(Line.Coordinates[i], envelope);
+                                Positions.Add(TranslatePosition(Line.Coordinates[i], envelope));
                             }
-                            Lines.Add(Line);
+                            Lines.Add(new LineString(Positions));
                         }
                         return new MultiLineString(Lines);
                     }
@@ -468,11 +476,12 @@ namespace Therezin.GeoJsonRenderer
                         var Lines = new List<LineString>();
                         foreach (var Line in ((Polygon)geometry).Coordinates)
                         {
+                            var Positions = new List<IPosition>();
                             for (int i = 0; i < Line.Coordinates.Count; i++)
                             {
-                                Line.Coordinates[i] = TranslatePosition(Line.Coordinates[i], envelope);
+                                Positions.Add(TranslatePosition(Line.Coordinates[i], envelope));
                             }
-                            Lines.Add(Line);
+                            Lines.Add(new LineString( Positions));
                         }
                         return new Polygon(Lines);
                     }
@@ -484,11 +493,12 @@ namespace Therezin.GeoJsonRenderer
                             var Lines = new List<LineString>();
                             foreach (var Line in Poly.Coordinates)
                             {
+                                var Positions = new List<IPosition>();
                                 for (int i = 0; i < Line.Coordinates.Count; i++)
                                 {
-                                    Line.Coordinates[i] = TranslatePosition(Line.Coordinates[i], envelope);
+                                    Positions.Add(TranslatePosition(Line.Coordinates[i], envelope));
                                 }
-                                Lines.Add(Line);
+                                Lines.Add(new LineString(Positions));
                             }
                             Polys.Add(new Polygon(Lines));
                         }
@@ -655,10 +665,10 @@ namespace Therezin.GeoJsonRenderer
                 var XSegments = ((canvasWidth / pageWidth) + (canvasWidth % pageWidth == 0 ? 0 : 1));
                 var YSegments = ((canvasHeight / pageHeight) + (canvasHeight % pageHeight == 0 ? 0 : 1));
 
-                
-                    for( int y = 1; y <= YSegments; y++)
+
+                for (int y = 1; y <= YSegments; y++)
                 {
-                    for(int x = 1; x <= XSegments; x++)
+                    for (int x = 1; x <= XSegments; x++)
                     {
                         using (Bitmap Segment = RenderSegment(XOffset, YOffset, XSize, YSize))
                         {
@@ -833,7 +843,7 @@ namespace Therezin.GeoJsonRenderer
         /// <summary>
         /// Convert a List of Positions into an array of PointFs.
         /// </summary>
-        private PointF[] ConvertPositionsToPoints(List<IPosition> positions)
+        private PointF[] ConvertPositionsToPoints(IList<IPosition> positions)
         {
             var OutList = new List<PointF>();
             for (int i = 0; i < positions.Count; i++)
